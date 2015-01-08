@@ -1,0 +1,66 @@
+syntax = "proto2";
+
+package ditree;
+
+message VertexParameter {
+  optional int32 index = 1;
+  optional int32 parent_index = 2;
+  repeated int32 child_index = 3;
+  // Depth of this node (root has depth 1)
+  optional int32 depth = 4;
+}
+
+message TreeParameter {
+  repeated VertexParameter vertexes = 1;
+  // The current "state" of the tree, including the phase
+  //optional TreeState state = 6;
+}
+
+// A message that stores the solver snapshots
+//message TreeState {
+//  optional Phase phase = 1 [default = TEST];
+//}
+
+message SolverParameter {
+  // The number of iterations for test.
+  optional int32 test_iter = 3;
+  // The number of iterations between two testing phases.
+  optional int32 test_interval = 4;
+  // If true, run an initial test pass before the first iteration,
+  // ensuring memory availability and printing the starting value of the loss.
+  optional bool test_initialization = 32 [default = true];
+
+  optional float base_lr = 5; // The base learning rate
+  // the number of iterations between displaying info. If display = 0, no info
+  // will be displayed.
+  optional int32 display = 6;
+  optional int32 max_iter = 7; // the maximum number of iterations
+  optional int32 stepsize = 13; // the stepsize for learning rate policy "step"
+  optional int32 snapshot = 14 [default = 0]; // The snapshot interval
+  optional string snapshot_prefix = 15; // The prefix for the snapshot.
+  // If non-negative, the seed with which the Solver will initialize the
+  // random number generator -- useful for reproducible results. Otherwise,
+  // (and by default) initialize using a seed derived from the system clock.
+  optional int64 random_seed = 20 [default = -1];
+}
+
+// A message that stores the solver snapshots
+message SolverState {
+  optional int32 iter = 1; // The current iteration
+  optional string learned_net = 2; // The file that stores the learned net.
+}
+
+//enum Phase {
+//   TRAIN = 0;
+//   TEST = 1;
+//}
+
+message DataBatchParameter {
+  // data
+  optional int32 size = 1;
+  optional int32 data_idx_begin = 2;
+  // statistics
+  optional float n = 3;
+  optional float s = 4;
+  optional float h = 5; 
+}
