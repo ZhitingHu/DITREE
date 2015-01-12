@@ -4,22 +4,43 @@ package ditree;
 
 message VertexParameter {
   optional int32 index = 1;
-  optional int32 parent_index = 2;
-  repeated int32 child_index = 3;
-  // Depth of this node (root has depth 1)
-  optional int32 depth = 4;
+  optional bool root = 2 [default = false];
+  //optional int32 parent_index = 2;
+  //optional int32 left_sibling_index = 3;
+  //optional int32 right_sibling_index = 4;
+  repeated int32 child_indexes = 5;
+  optional int32 child_table_idx = 5;
+  repeated float mean = 5;
+  optional float kappa = 6;
+  optional float tau_0 = 7;
+  optional float tau_1 = 8;
+  optional float sigma_0 = 9;
+  optional float sigma_1 = 10;
+  repeated float tau_0_history = 11;
+  repeated float tau_1_history = 12;
+  repeated float sigma_0_history = 13;
+  repeated float sigma_1_history = 14;
+  optional float n = 15;
+  repeated float s = 16;
 }
 
 message TreeParameter {
   repeated VertexParameter vertexes = 1;
   // The current "state" of the tree, including the phase
-  //optional TreeState state = 6;
+  optional TreeState state = 2;
 }
 
 // A message that stores the solver snapshots
-//message TreeState {
-//  optional Phase phase = 1 [default = TEST];
-//}
+message TreeState {
+  optional Phase phase = 1 [default = VI_AFTER_SPLIT];
+}
+
+enum Phase {
+  SPLIT = 0;
+  MERGE = 1;
+  VI_AFTER_SPLIT = 2;
+  VI_AFTER_MERGE = 3;
+}
 
 message SolverParameter {
   // The number of iterations for test.
@@ -30,12 +51,10 @@ message SolverParameter {
   // ensuring memory availability and printing the starting value of the loss.
   optional bool test_initialization = 32 [default = true];
 
-  optional float base_lr = 5; // The base learning rate
   // the number of iterations between displaying info. If display = 0, no info
   // will be displayed.
   optional int32 display = 6;
   optional int32 max_iter = 7; // the maximum number of iterations
-  optional int32 stepsize = 13; // the stepsize for learning rate policy "step"
   optional int32 snapshot = 14 [default = 0]; // The snapshot interval
   optional string snapshot_prefix = 15; // The prefix for the snapshot.
   // If non-negative, the seed with which the Solver will initialize the
@@ -50,17 +69,26 @@ message SolverState {
   optional string learned_net = 2; // The file that stores the learned net.
 }
 
-//enum Phase {
-//   TRAIN = 0;
-//   TEST = 1;
-//}
 
+//===========================
+// Dataset
+//===========================
+message DatasetParameter {
+  repeated DataBatchParameter data_batches = 0;
+}
 message DataBatchParameter {
   // data
   optional int32 size = 1;
   optional int32 data_idx_begin = 2;
-  // statistics
-  optional float n = 3;
-  optional float s = 4;
-  optional float h = 5; 
+  // sufficient statistics
+  repeated float n = 3;
+  repeated DataBatchVertexWordWeights s = 4;
 }
+message DataBatchVertexWordWeights {
+  required int32 vertex_index = 0;
+  // the lengths of word_index and weight should be equal
+  repeated int32 word_index = 1;
+  repeated float weight = 2;
+}
+
+

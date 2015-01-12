@@ -20,6 +20,7 @@ class DITreeEngine {
   void Start();
  
  private:
+  CreateTables();
 
  private:
 

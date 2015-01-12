@@ -5,6 +5,37 @@
 
 namespace ditree {
 
+inline void CopyUIntFloatMap(const UIntFloatMap& source, 
+    const float coeff, UIntFloatMap& target) {
+  BOOST_FOREACH(const UIntFloatPair& s_ele, source) {
+#ifdef DEBUG
+    CHECK(target[s_ele.first] != target.end());
+#endif
+    target[s_ele.first] = s_ele.second * coeff;
+  }
+}
+inline void AccumUIntFloatMap(const UIntFloatMap& source, 
+    const float coeff, UIntFloatMap& target) {
+  BOOST_FOREACH(const UIntFloatPair& s_ele, source) {
+#ifdef DEBUG
+    CHECK(target[s_ele.first] != target.end());
+#endif
+    target[s_ele.first] += s_ele.second * coeff;
+  }
+}
+
+// Z = aX + bY
+inline void AddFloatVectors(const float a, const FloatVec& X, 
+    const float b, const FloatVec& Y, FloatVec& Z) {
+#ifdef DEBUG
+  CHECK_EQ(X.size(), Y.size());
+  CHECK_EQ(X.size(), Z.size());
+#endif
+  for (int i = 0; i < X.size(); ++i) {
+    Z[i] = a * X[i] + b * Y[i];
+  }
+}
+
 // VMF log probability density function
 // vMF(x | mu, kappa)
 float LogVMFProb(const UIntFloatMap& x, const FloatVec& mu, float kappa) {

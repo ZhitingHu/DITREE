@@ -43,8 +43,32 @@ using std::set;
 using std::string;
 using std::stringstream;
 
+// Constants
 const int kNumIntBits = 32;
-const float kFloatEpsilon = 1e-7;
+const float kFloatEpsilon = 1e-8;
+enum RowTypes {
+  //kDITreeDenseRowDtypeID = 0,
+  kIntDenseRowDtypeID = 0,
+  kFloatDenseRowDtypeID
+}
+enum TableIds {
+  kParamTableID = 0,
+  kStructTableID,
+  kParamTableMetaTableID,
+  kLossTableID
+}
+  // param table row organization
+enum ParamTableCols {
+  //kColIdxParamTableLr = 0,
+  kColIdxParamTableN = 0,
+  //kColIdxParamTableTau0,
+  //kColIdxParamTableTau1,
+  //kColIdxParamTableSigma0,
+  //kColIdxParamTableSigma1,
+  //kColIdxParamTableKappa,
+  //kColIdxParamTableMeanStart
+  kColIdxParamTableSStart
+}
 
 // Typedefs
 typedef unsigned short uint16; // Should work for all x86/x64 compilers

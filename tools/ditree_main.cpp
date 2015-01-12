@@ -19,7 +19,7 @@ DEFINE_string(stats_path, "",
     "Statistics output file");
 DEFINE_int32(num_comm_channels_per_client, 1,
     "number of comm channels per client");
-DEFINE_int32(staleness, 0, 
+DEFINE_int32(param_table_staleness, 0, 
     "staleness for weight tables.");
 DEFINE_int32(loss_table_staleness, 5, 
     "staleness for loss tables.");
@@ -51,11 +51,14 @@ DEFINE_string(snapshot, "",
     "Optional; the snapshot solver state to resume training.");
 DEFINE_string(ditree_outputs, "",
     "The prefix of the ditree output file.");
-DEFINE_int32(iterations, 50,
-    "The number of iterations to run.");
 DEFINE_int32(history, 1,
     "Number of history time slice to consider.");
-
+DEFINE_string(word_map, "",
+    "The word string id map file.");
+DEFINE_string(docs_train, "",
+    "The training documents file.");
+DEFINE_string(docs_test, "",
+    "The test documents file.");
 
 int main(int argc, char** argv) {
   // Print output to stderr (while still logging).

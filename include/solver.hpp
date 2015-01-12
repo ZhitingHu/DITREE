@@ -36,7 +36,9 @@ class Solver {
   Dataset* dataset_;
 
   int iter_;
+  float learning_rate_;
 
+  petuum::Table<float> loss_table_;
   int display_counter_;
   int test_counter_;
   // print results on the fly

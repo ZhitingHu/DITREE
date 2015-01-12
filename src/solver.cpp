@@ -43,55 +43,98 @@ void Solver::Solve(const char* resume_file) {
   display_counter_ = 0;
   test_counter_ = 0;
   total_timer_.restart();
-  
-  // TODO initialize display_gap_ 
  
+  loss_table_ = petuum::PSTableGroup::GetTableOrDie<float>(kLossTableID);
+  ditree::Context& context = ditree::Context::Get();
+  int loss_table_staleness = context.get_int32("loss_table_staleness");
+  if (param_.display()) {
+    display_gap_ = loss_table_staleness / param_.display() + 1;
+  }
+  if (param_.test_interval()) {
+    test_display_gap_ = loss_table_staleness / param_.test_interval() + 1; 
+  }
+
   //
   for (; iter_ < param_.max_iter(); ++iter_) {
-    //tree_->SyncParameter();
-    
     // Save a snapshot if needed.
     if (param_.snapshot() && iter_ > start_iter &&
         iter_ % param_.snapshot() == 0) {
       Snapshot();
     }
     
-    // Test if needed 
+    // Test if needed.
     if (param_.test_interval() && iter_ % param_.test_interval() == 0
         && (iter_ > 0 || param_.test_initialization())) {
       Test();
     }
 
-    // main VI
-    
-    //TODO: display
+    tree_->ReadParamTable();
+    root_->ConstructParam();
 
+    // main VI
+    Update();
+    
+    petuum::PSTableGroup::Clock();
+ 
+    // Display
+    if (param_.display() && iter_ % param_.display() == 0) {
+      //TODO: display
+    }
+  } // end of iter
+
+  if (param_.snapshot_after_train()) { Snapshot(); }
+  if (param_.test_interval() && iter_ % param_.test_interval() == 0) {
+    Test();
   }
 }
 
-
 void Solver::Update() {
   DataBatch* data_batch = dataset_->GetNextDataBatch();
+  data_batch->UpdateSuffStatStruct();
   
   /// e-step (TODO: openmp)
-
-  UIntFloatMap n_new(data_batch->n());
-  map<uint32, UIntFloatMap> s_new(data_batch->s());
+  UIntFloatMap n_old(data_batch->n());
+  map<uint32, UIntFloatMap> s_old(data_batch->s());
+  UIntFloatMap& n_new = data_batch->n();
+  map<uint32, UIntFloatMap>& s_new = data_batch->s();
+#ifdef DEBUG
+  CHECK_EQ(n_new.size(), tree_->size());
+  CHECK_EQ(s_new.size(), tree_->size());
+#endif
   // Z prior
-  root_->RecursiveComputeVarZPrior();
+  root_->RecursComputeVarZPrior();
   // likelihood
-  for (int d_idx = 0; d_idx < data_batch->size(); ++d_idx) {
-    Datum* datum = data_batch->datum(d_idx);
+  int d_idx = data_batch->data_idx_begin();
+  for (; d_idx < data_batch->size(); ++d_idx) {
+    Datum* datum = dataset_->datum(d_idx);
+    float weight[n_new.size()];
     float weight_sum = 0;
-    // update on each node
-    BOOST_FOREACH(const UIntFloatPair& ele, n_new) {
-      const Vertex* vertex = tree_->vertex(ele.first);
-      const float weight 
-          = LogVMFProb(datum->data(), vertex->mean(), vertex->kappa());
+    // update on each vertex
+    BOOST_FOREACH(const UIntFloatPair& n_new_ele, n_new) {
+      const Vertex* vertex = tree_->vertex(n_new_ele.first);
+      weight[n_new_ele.first] = exp(vertex->var_z_prior() 
+          + LogVMFProb(datum->data(), vertex->mean(), vertex->kappa()));
       weight_sum += weight;
-      
     }
-  } 
+#ifdef DEBUG
+    CHECK_GT(weight_sum, kFloatEpsilon);
+#endif
+    if (d_idx == data_batch->data_idx_begin()) {
+      BOOST_FOREACH(UIntFloatPair& n_new_ele, n_new) {
+        n_new_ele.second = weight / weight_sum;
+        CopyUIntFloatMap(datum->data(), weight[n_new_ele.first] / weight_sum,
+            s_new[n_new_ele.first]);
+      }
+    } else {
+      BOOST_FOREACH(UIntFloatPair& n_new_ele, n_new) {
+        n_new_ele.second += weight / weight_sum;
+        AccumUIntFloatMap(datum->data(), weight[n_new_ele.first] / weight_sum,
+            s_new[n_new_ele.first]);
+      }
+    }
+  } // end of datum
+
+  tree_->UpdateParamTable(n_old, n_new, s_old, s_new);
 }
 
 void Solver::Test() {

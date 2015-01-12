@@ -19,7 +19,22 @@ Context::Context() {
     ctx_[flag.name] = flag.is_default ? flag.default_value : flag.current_value;
   }
 
+  Init();
+}
+
+Context::Init() {
   num_app_threads_ = get_int32("num_app_threads");
+  //phases_ = new Phase[num_app_threads_];
+  //for (int t_idx = 0; t_idx < num_app_threads_; ++t_idx) {
+  //  set_phase(Caffe::VI_AFTER_SPLIT, t_idx);
+  //}
+  phase_ = VI_AFTER_SPLIT;
+  num_table_id_bits_ = get_int32("num_table_id_bits");
+  num_row_id_bits_ = kNumIntBits - num_table_id_bits_;
+  kappa_0_ = get_double("kappa_0");
+  kappa_1_ = get_double("kappa_1");
+  kappa_2_ = get_double("kappa_2");
+  beta_ = get_double("beta");
 }
 
 // -------------------- Getters ----------------------

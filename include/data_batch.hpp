@@ -11,25 +11,30 @@ class DataBatch {
  public:
   explicit DataBatch();
  
-  inline int size() { return data_.size(); }
-  inline Datum* datum(int idx) {
-#ifdef DEBUG
-    CHECK_LT(idx, data_.size());
-#endif
-    return data_[idx];
-  }
+  void UpdateSuffStatStruct(
+      const vector<Triple>& vertex_split_records, 
+      const vector<Triple>& vertex_merge_records);
 
-  inline const UIntFloatMap& n() { return n_; }
-  inline const map<uint32, UIntFloatMap>& s() { return s_; }
+  inline UIntFloatMap& n() { return n_; }
+  inline map<uint32, UIntFloatMap>& s() { return s_; }
+  inline int size() const { return size_; }
+  inline int data_idx_begin() const { return data_idx_begin_; } 
 
  private:
 
- private:
-  vector<Datum*> data_;
+  void UpdateSuffStatStructBySplit(
+      const vector<Triple>& vertex_split_records);
+  void UpdateSuffStatStructByMerge(
+      const vector<Triple>& vertex_merge_records);
 
+ private:
+  int size_;
+  int data_idx_begin_;
+
+  /// sufficient statistics
   /// one entry for each topic component
   UIntFloatMap n_;
-  // topic_id => (word_id => weight)
+  // vertex_id => (word_id => weight)
   map<uint32, UIntFloatMap> s_;
   //UIntFloatMap h_;
 };
