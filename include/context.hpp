@@ -2,7 +2,7 @@
 #define DITREE_CONTEXT_HPP_
 
 #include "common.hpp"
-
+#include "random.hpp"
 #include <unordered_map>
 #include <boost/shared_ptr.hpp>
 #include <boost/shared_ptr.hpp>
@@ -26,7 +26,7 @@ public:
   void set(std::string key, bool value);
   void set(std::string key, std::string value);
 
-  enum Phase { SPLIT, MERGE, VI_AFTER_SPLIT, VI_AFTER_MERGE };
+  enum Phase { kInit, kSplit, kMerge, kVIAfterSplit, kVIAfterMerge };
 //  inline static Phase phase(const int thread_id) { 
 //#ifdef DEBUG
 //    CHECK(Get().phases_ != NULL);
@@ -41,24 +41,30 @@ public:
   inline static int num_app_threads() {
     return Get().num_app_threads_; 
   }
-  inline static float kappa_0() {
-    return Get().kappa_0_;
+  //inline static float kappa_0() {
+  //  return Get().kappa_0_;
+  //}
+  //inline static float kappa_1() {
+  //  return Get().kappa_1_;
+  //}
+  //inline static float beta() {
+  //  return Get().beta_;
+  //}
+  inline static int vocab_size() {
+    return Get().vocab_size_;
   }
-  inline static float kappa_1() {
-    return Get().kappa_1_;
-  }
-  inline static float beta() {
-    return Get().beta_;
+  inline static float rand() {
+    return Get().random_generator_->rand();
   }
 
   inline static petuum::Table<float>* param_table() {
-    return Get().param_table_;
+    return &(Get().param_table_);
   }
-  inline static petuum::Table<float>* struct_table() {
-    return Get().struct_table_;
+  inline static petuum::Table<int>* struct_table() {
+    return &(Get().struct_table_);
   }
-  inline static petuum::Table<float>* param_table_meta_table() {
-    return Get().param_table_meta_table_;
+  inline static petuum::Table<int>* param_table_meta_table() {
+    return &(Get().param_table_meta_table_);
   }
   inline static void SetTables() {
     Get().param_table_ 
@@ -79,7 +85,7 @@ public:
 private:
   // Private constructor. Store all the gflags values.
   Context();
-  Init();
+  void Init();
   // Underlying data structure
   std::unordered_map<std::string, std::string> ctx_;
 
@@ -88,14 +94,17 @@ private:
   int num_app_threads_;
   int num_table_id_bits_;
   int num_row_id_bits_;
-  float kappa_0_;
-  float kappa_1_;
-  float kappa_2_;
-  float beta_;
+  //float kappa_0_;
+  //float kappa_1_;
+  //float kappa_2_;
+  //float beta_;
+  int vocab_size_;
 
-  petuum::Table<float>* param_table_;
-  petuum::Table<float>* struct_table_;
-  petuum::Table<float>* param_table_meta_table_;
+  Random* random_generator_;
+
+  petuum::Table<float> param_table_;
+  petuum::Table<int> struct_table_;
+  petuum::Table<int> param_table_meta_table_;
 };
 
 }   // namespace ditree

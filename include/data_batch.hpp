@@ -1,19 +1,20 @@
 #ifndef DITREE_DATA_BATCH_HPP_
 #define DITREE_DATA_BATCH_HPP_
 
+#include "tree.hpp"
+#include "datum.hpp"
 #include "common.hpp"
 #include "context.hpp"
-
 
 namespace ditree {
 
 class DataBatch {
  public:
-  explicit DataBatch();
+  explicit DataBatch(const int data_idx_begin, const int size)
+  : data_idx_begin_(data_idx_begin), size_(size) { }
  
-  void UpdateSuffStatStruct(
-      const vector<Triple>& vertex_split_records, 
-      const vector<Triple>& vertex_merge_records);
+  void UpdateSuffStatStruct(const Tree* tree);
+  void InitSuffStatStruct(const Tree* tree, const vector<Datum*>& data);
 
   inline UIntFloatMap& n() { return n_; }
   inline map<uint32, UIntFloatMap>& s() { return s_; }
@@ -28,15 +29,14 @@ class DataBatch {
       const vector<Triple>& vertex_merge_records);
 
  private:
-  int size_;
   int data_idx_begin_;
+  int size_;
 
   /// sufficient statistics
   /// one entry for each topic component
   UIntFloatMap n_;
   // vertex_id => (word_id => weight)
   map<uint32, UIntFloatMap> s_;
-  //UIntFloatMap h_;
 };
 
 } // namespace ditree

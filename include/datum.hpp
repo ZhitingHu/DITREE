@@ -8,13 +8,19 @@ namespace ditree {
 
 class Datum {
  public:
-  explicit Datum();
+  explicit Datum() { }
   
-  const IdxWeightMap& data() { return data_; }
+  inline void AddWord(const int word_id, const float word_weight) {
+#ifdef DEBUG
+    CHECK(data_.find(word_id) == data_.end());
+#endif
+    data_[word_id] = word_weight;
+  }
+  const UIntFloatMap& data() { return data_; }
  private:
 
  private:
-  IdxWeightMap data_;
+  UIntFloatMap data_;
 
 };
 

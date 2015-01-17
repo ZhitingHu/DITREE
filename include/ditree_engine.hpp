@@ -10,7 +10,7 @@ namespace ditree {
 
 class DITreeEngine {
  public:
-  explicit DITreeEngine();
+  explicit DITreeEngine(const SolverParameter& param);
   
   void Init();
 
@@ -20,11 +20,13 @@ class DITreeEngine {
   void Start();
  
  private:
-  CreateTables();
+  void CreateTables();
 
  private:
+  SolverParameter solver_param_;
 
   Dataset train_data_;
+  //Dataset test_data_;
 
   // 
   std::atomic<int> thread_counter_;

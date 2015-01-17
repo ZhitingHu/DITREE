@@ -3,10 +3,9 @@
 
 #include <fcntl.h>
 #include <unistd.h>
-#include <string>
 
+#include "common.hpp"
 #include "google/protobuf/message.h"
-
 #include "proto/ditree.pb.h"
 
 namespace ditree {
@@ -39,11 +38,16 @@ inline void MakeTempDir(string* temp_dirname) {
   delete temp_dirname_cstr;
 }
 
-inline bool CheckFileExistence(const char* filename);
+bool CheckFileExistence(const char* filename);
 
 inline bool CheckFileExistence(const string& filename) {
   return CheckFileExistence(filename.c_str());
 }
+
+//bool ReadStringIntMap(const string& filename, map<string, int>& st_int_map) {
+//  return ReadStringIntMap(filename.c_str(), st_int_map);
+//}
+//bool ReadStringIntMap(const char* filename, map<string, int>& st_int_map);
 
 bool ReadProtoFromTextFile(const char* filename, Message* proto);
 
@@ -84,20 +88,6 @@ inline void WriteProtoToBinaryFile(
     const Message& proto, const string& filename) {
   WriteProtoToBinaryFile(proto, filename.c_str());
 }
-
-bool ReadImageToDatum(const string& filename, const int label,
-    const int height, const int width, const bool is_color, Datum* datum);
-
-inline bool ReadImageToDatum(const string& filename, const int label,
-    const int height, const int width, Datum* datum) {
-  return ReadImageToDatum(filename, label, height, width, true, datum);
-}
-
-inline bool ReadImageToDatum(const string& filename, const int label,
-    Datum* datum) {
-  return ReadImageToDatum(filename, label, 0, 0, datum);
-}
-
 
 }  // namespace ditree
 

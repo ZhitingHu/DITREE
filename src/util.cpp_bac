@@ -9,16 +9,17 @@ inline void CopyUIntFloatMap(const UIntFloatMap& source,
     const float coeff, UIntFloatMap& target) {
   BOOST_FOREACH(const UIntFloatPair& s_ele, source) {
 #ifdef DEBUG
-    CHECK(target[s_ele.first] != target.end());
+    CHECK(target.find(s_ele.first) != target.end());
 #endif
     target[s_ele.first] = s_ele.second * coeff;
   }
 }
+
 inline void AccumUIntFloatMap(const UIntFloatMap& source, 
     const float coeff, UIntFloatMap& target) {
   BOOST_FOREACH(const UIntFloatPair& s_ele, source) {
 #ifdef DEBUG
-    CHECK(target[s_ele.first] != target.end());
+    CHECK(target.find(s_ele.first) != target.end());
 #endif
     target[s_ele.first] += s_ele.second * coeff;
   }
@@ -35,6 +36,19 @@ inline void AddFloatVectors(const float a, const FloatVec& X,
     Z[i] = a * X[i] + b * Y[i];
   }
 }
+
+// Z = X'*Y
+inline float DotProdFloatVectors(const FloatVec& X, const FloatVec& Y) {
+#ifdef DEBUG
+  CHECK_EQ(X.size(), Y.size());
+#endif
+  float prod = 0;
+  for (int i = 0; i < X.size(); ++i) {
+    prod += X[i] * Y[i];
+  }
+  return prod;
+}
+
 
 // VMF log probability density function
 // vMF(x | mu, kappa)
@@ -53,6 +67,13 @@ float LogVMFProb(const UIntFloatMap& x, const FloatVec& mu, float kappa) {
   // to disable it, make sure to set all node emission Kappas identically!
   //result += (V_/2.0 - 1)*log(kappa) - (V_/2.0)*log(2*pi) - to_double(log(BesselI(V_/2.0 - 1, kappa)));
   //result += (V_/2.0 - 1)*log(kappa) - (V_/2.0)*log(2*pi) - fastLogBesselI(V_/2.0 - 1, kappa);
+  return result;
+}
+
+inline double LogVMFProbNormalizer(const double V, const double kappa) {
+  static const double pi = atan(1.)*4;
+  double result;
+  result += (V/2.0 - 1)*log(kappa) - (V/2.0)*log(2*pi) - fastLogBesselI(V/2.0 - 1, kappa);
   return result;
 }
 
@@ -147,15 +168,14 @@ double trigamma(double x) {
  * taylor approximation of first derivative of the log gamma function
  *
  */
-
 inline double digamma(double x) {
-    double p;
-    x=x+6;
-    p=1/(x*x);
-    p=(((0.004166666666667*p-0.003968253986254)*p+
-	0.008333333333333)*p-0.083333333333333)*p;
-    p=p+log(x)-0.5/x-1/(x-1)-1/(x-2)-1/(x-3)-1/(x-4)-1/(x-5)-1/(x-6);
-    return p;
+  double p;
+  x=x+6;
+  p=1/(x*x);
+  p=(((0.004166666666667*p-0.003968253986254)*p+
+      0.008333333333333)*p-0.083333333333333)*p;
+  p=p+log(x)-0.5/x-1/(x-1)-1/(x-2)-1/(x-3)-1/(x-4)-1/(x-5)-1/(x-6);
+  return p;
 }
 
 

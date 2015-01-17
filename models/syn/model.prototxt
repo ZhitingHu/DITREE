@@ -1,0 +1,18 @@
+alpha: 100
+gamma: 10
+beta: 10000
+kappa_0: 1
+kappa_1: 0.01
+kappa_2: 1
+vertexes {
+  index: 0
+  root: true
+  child_indexes: 1
+  child_indexes: 2
+}
+vertexes {
+  index: 1
+}
+vertexes {
+  index: 2
+}

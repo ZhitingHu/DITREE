@@ -27,19 +27,19 @@ DEFINE_int32(row_oplog_type, petuum::RowOpLogType::kDenseRowOpLog,
     "row oplog type");
 DEFINE_bool(oplog_dense_serialized, true, 
     "True to not squeeze out the 0's in dense oplog.");
-DEFINE_string(process_storage_type, "BoundedDense", 
-    "process storage type");
 
 // PS Table Organization Paremeters
 DEFINE_int32(max_depth, 10,
     "Maximum depth of a vertex.");
-DEFINE_int32(max_num_child_per_node, 20,
+DEFINE_int32(max_num_children_per_vertex, 20,
     "Maximum number of children of a vertex.");
-DEFINE_int32(max_num_parent_per_table, 5,
+DEFINE_int32(max_num_vertexes, 10000,
+    "Maximum number of children of a vertex.");
+DEFINE_int32(max_num_parents_per_table, 5,
     "Maximum number of parent of a table.");
 DEFINE_int32(num_layer_per_table, 2,
     "Number of node layers of a table.");
-DEFINE_int32(num_table_id_digit, 8,
+DEFINE_int32(num_table_id_bits, 8,
     "Number of digit for representing table id, must be in (0, 32).");
 
 // DITree Parameters
@@ -49,16 +49,25 @@ DEFINE_string(model, "",
     "The model definition protocol buffer text file.");
 DEFINE_string(snapshot, "",
     "Optional; the snapshot solver state to resume training.");
+DEFINE_string(params, "",
+    "Optional; the model parameters to fine tuning.");
 DEFINE_string(ditree_outputs, "",
     "The prefix of the ditree output file.");
 DEFINE_int32(history, 1,
     "Number of history time slice to consider.");
-DEFINE_string(word_map, "",
-    "The word string id map file.");
-DEFINE_string(docs_train, "",
-    "The training documents file.");
-DEFINE_string(docs_test, "",
-    "The test documents file.");
+// Data Parameters
+DEFINE_string(data, "",
+    "The data path.");
+DEFINE_string(mean, "",
+    "Mean of the word vectors.");
+DEFINE_int32(vocab_size, 0,
+    "Size of the vocabulary.");
+DEFINE_int32(batch_size, 100,
+    "Size of a minibatch.");
+//Other Parameters
+DEFINE_int32(random_seed, -1,
+    "Use system time as rand seed by default.");
+
 
 int main(int argc, char** argv) {
   // Print output to stderr (while still logging).
@@ -66,7 +75,29 @@ int main(int argc, char** argv) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
 
+  CHECK_GT(FLAGS_solver.size(), 0) << "Need a solver definition to train.";
+  CHECK_GT(FLAGS_model.size(), 0) << "Need a model definition to train.";
 
+  
+  ditree::SolverParameter solver_param;
+  ditree::ReadProtoFromTextFileOrDie(FLAGS_solver, &solver_param);
+  ditree::DITreeEngine* ditree_engine = new ditree::DITreeEngine(solver_param);
+  ditree_engine->ReadData();
+
+  LOG(INFO) << "Starting NN with " << FLAGS_num_app_threads << " threads "
+      << "on client " << FLAGS_client_id;
+  
+  std::vector<std::thread> threads(FLAGS_num_app_threads); 
+  for (auto& thr : threads) {
+    thr = std::thread(&ditree::DITreeEngine::Start, std::ref(*ditree_engine));
+  }
+  for (auto& thr : threads) {
+    thr.join();
+  }
+
+  LOG(INFO) << "Optimization Done.";
+
+  petuum::PSTableGroup::ShutDown();
   LOG(INFO) << "DITree finished and shut down!";
 
   return 0;

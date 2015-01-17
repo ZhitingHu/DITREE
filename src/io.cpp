@@ -31,6 +31,21 @@ bool CheckFileExistence(const char* filename) {
   return exist; 
 }
 
+//bool ReadStringIntMap(const char* filename, map<string, int>& st_int_map) {
+//  ifstream input(filename, ios::in);
+//  CHECK(input.is_open()) << "File not found: " << filename;
+//  string st;
+//  int value;
+//  while (input >> st >> value) {
+//#ifdef DEBUG
+//    CHECK(st_int_map.find(st) != st_int_map.end());
+//#endif
+//    st_int_map[st] = value;
+//  }
+//  input.close();
+//  return true;
+//}
+
 bool ReadProtoFromTextFile(const char* filename, Message* proto) {
   int fd = open(filename, O_RDONLY);
   CHECK_NE(fd, -1) << "File not found: " << filename;

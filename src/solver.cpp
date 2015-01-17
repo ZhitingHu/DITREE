@@ -1,22 +1,41 @@
 
+#include "util.hpp"
+#include "io.hpp"
 #include "solver.hpp"
+#include <cmath>
+#include <algorithm>
+#include <boost/foreach.hpp>
+#include <petuum_ps_common/include/petuum_ps.hpp>
 
 namespace ditree {
 
-Solver::Solver(const SolverParameter& param, const int thread_id)
-    : thread_id_(thread_id) {
-
+Solver::Solver(const SolverParameter& param, const int thread_id, 
+    Dataset* train_data) : thread_id_(thread_id), train_data_(train_data) {
+  Init(param);
 }
 
-Solver::Solver(const string& param_file, const int thread_id)
-    : thread_id_(thread_id) {
-
+Solver::Solver(const string& param_file, const int thread_id, 
+    Dataset* train_data) : thread_id_(thread_id), train_data_(train_data) {
+  SolverParameter param;
+  ReadProtoFromTextFile(param_file, &param);
+  Init(param);
 }
 
-void Solver::Init() {
+void Solver::Init(const SolverParameter& param) {
   ditree::Context& context = ditree::Context::Get();
   client_id_ = context.get_int32("client_id");
+  param_ = param;
+  
+  // Initialize tree
+  const string& model = context.get_string("model"); 
+  tree_ = new Tree(model, thread_id_);
+  root_ = tree_->root();
+  tree_->InitParam();
 
+  train_loss_table_ 
+      = petuum::PSTableGroup::GetTableOrDie<float>(kTrainLossTableID);
+  test_loss_table_ 
+      = petuum::PSTableGroup::GetTableOrDie<float>(kTestLossTableID);
 }
 
 void Solver::Solve(const char* resume_file) {
@@ -44,7 +63,10 @@ void Solver::Solve(const char* resume_file) {
   test_counter_ = 0;
   total_timer_.restart();
  
-  loss_table_ = petuum::PSTableGroup::GetTableOrDie<float>(kLossTableID);
+  train_loss_table_ 
+      = petuum::PSTableGroup::GetTableOrDie<float>(kTrainLossTableID);
+  test_loss_table_ 
+      = petuum::PSTableGroup::GetTableOrDie<float>(kTestLossTableID);
   ditree::Context& context = ditree::Context::Get();
   int loss_table_staleness = context.get_int32("loss_table_staleness");
   if (param_.display()) {
@@ -56,6 +78,7 @@ void Solver::Solve(const char* resume_file) {
 
   //
   for (; iter_ < param_.max_iter(); ++iter_) {
+    LOG(INFO) << "start iter " << iter_;
     // Save a snapshot if needed.
     if (param_.snapshot() && iter_ > start_iter &&
         iter_ % param_.snapshot() == 0) {
@@ -69,10 +92,13 @@ void Solver::Solve(const char* resume_file) {
     }
 
     tree_->ReadParamTable();
-    root_->ConstructParam();
+    LOG(INFO) << "read param table done. ";
+    root_->RecursConstructParam();
+    LOG(INFO) << "recurs param done. ";
 
     // main VI
     Update();
+    LOG(INFO) << "update done. ";
     
     petuum::PSTableGroup::Clock();
  
@@ -89,9 +115,16 @@ void Solver::Solve(const char* resume_file) {
 }
 
 void Solver::Update() {
-  DataBatch* data_batch = dataset_->GetNextDataBatch();
-  data_batch->UpdateSuffStatStruct();
-  
+  DataBatch* data_batch = train_data_->GetNextDataBatch();
+  //if (Context::phase() == Context::Phase::kInit) {
+  if (data_batch->n().size() == 0) {
+    data_batch->InitSuffStatStruct(tree_, train_data_->data());
+  } else {
+    data_batch->UpdateSuffStatStruct(tree_);
+  }
+ 
+  // sum_{n,z} lambda_nz log (lambda_nz) 
+  float h = 0;
   /// e-step (TODO: openmp)
   UIntFloatMap n_old(data_batch->n());
   map<uint32, UIntFloatMap> s_old(data_batch->s());
@@ -101,45 +134,109 @@ void Solver::Update() {
   CHECK_EQ(n_new.size(), tree_->size());
   CHECK_EQ(s_new.size(), tree_->size());
 #endif
-  // Z prior
+  // z prior
   root_->RecursComputeVarZPrior();
+
+  float tree_elbo_tmp_start = tree_->ComputeELBO();
+  LOG(INFO) << "ELBO before training " << tree_elbo_tmp_start;
+
+  LOG(INFO) << "recurs var z prior done. ";
   // likelihood
+  LOG(INFO) << "databatch " << data_batch->data_idx_begin() << " " << data_batch->size();
   int d_idx = data_batch->data_idx_begin();
-  for (; d_idx < data_batch->size(); ++d_idx) {
-    Datum* datum = dataset_->datum(d_idx);
-    float weight[n_new.size()];
-    float weight_sum = 0;
+  int data_idx_end = d_idx + data_batch->size();
+  for (; d_idx < data_idx_end; ++d_idx) {
+    LOG(INFO) << "data " << d_idx;
+    Datum* datum = train_data_->datum(d_idx);
+    UIntFloatMap log_weights;
+    float max_log_weight = -1;
+    float log_weight_sum = 0;
     // update on each vertex
     BOOST_FOREACH(const UIntFloatPair& n_new_ele, n_new) {
       const Vertex* vertex = tree_->vertex(n_new_ele.first);
-      weight[n_new_ele.first] = exp(vertex->var_z_prior() 
-          + LogVMFProb(datum->data(), vertex->mean(), vertex->kappa()));
-      weight_sum += weight;
+      float cur_log_weight = vertex->var_z_prior() 
+          + LogVMFProb(datum->data(), vertex->mean(), vertex->beta());
+      log_weights[n_new_ele.first] = cur_log_weight; 
+      max_log_weight = max(cur_log_weight, max_log_weight);
     }
+    BOOST_FOREACH(const UIntFloatPair& log_weight_ele, log_weights) {
+      log_weight_sum += exp(log_weight_ele.second - max_log_weight);
+    }
+    log_weight_sum = log(log_weight_sum) + max_log_weight;
+    
 #ifdef DEBUG
-    CHECK_GT(weight_sum, kFloatEpsilon);
+    //CHECK_GT(log_weight_sum, kFloatEpsilon);
+    CHECK(!isnan(log_weight_sum));
+    CHECK(!isinf(log_weight_sum));
 #endif
     if (d_idx == data_batch->data_idx_begin()) {
       BOOST_FOREACH(UIntFloatPair& n_new_ele, n_new) {
-        n_new_ele.second = weight / weight_sum;
-        CopyUIntFloatMap(datum->data(), weight[n_new_ele.first] / weight_sum,
+        n_new_ele.second = exp(log_weights[n_new_ele.first] - log_weight_sum);
+
+        LOG(INFO) << "n_new_ele " << n_new_ele.first << " " 
+            << n_new_ele.second << " " << exp(log_weights[n_new_ele.first] - log_weight_sum);
+
+        CopyUIntFloatMap(datum->data(), n_new_ele.second, 
             s_new[n_new_ele.first]);
+
+        h += exp(log_weights[n_new_ele.first] - log_weight_sum) 
+            * (log_weights[n_new_ele.first] - log_weight_sum);
+        LOG(INFO) << "h " << h << " = " << n_new_ele.second << " * " 
+           << (log_weights[n_new_ele.first] - log_weight_sum) << " " 
+           << exp(log_weights[n_new_ele.first] - log_weight_sum);
       }
     } else {
       BOOST_FOREACH(UIntFloatPair& n_new_ele, n_new) {
-        n_new_ele.second += weight / weight_sum;
-        AccumUIntFloatMap(datum->data(), weight[n_new_ele.first] / weight_sum,
+        n_new_ele.second += exp(log_weights[n_new_ele.first] - log_weight_sum);
+        
+        LOG(INFO) << "n_new_ele " << n_new_ele.first << " " 
+            << n_new_ele.second << " " << exp(log_weights[n_new_ele.first] - log_weight_sum);
+
+        AccumUIntFloatMap(datum->data(), n_new_ele.second,
             s_new[n_new_ele.first]);
+
+        h += exp(log_weights[n_new_ele.first] - log_weight_sum) 
+            * (log_weights[n_new_ele.first] - log_weight_sum);
+        LOG(INFO) << "h " << h << " = " 
+           << exp(log_weights[n_new_ele.first] - log_weight_sum) << " * "
+           << (log_weights[n_new_ele.first] - log_weight_sum);
       }
     }
   } // end of datum
 
-  tree_->UpdateParamTable(n_old, n_new, s_old, s_new);
+  BOOST_FOREACH(const UIntFloatPair& ele, n_old) {
+    LOG(INFO) << "n_old " << ele.first << " " << ele.second;
+  }
+  BOOST_FOREACH(const UIntFloatPair& ele, n_new) {
+    LOG(INFO) << "n_new " << ele.first << " " << ele.second;
+  }
+  tree_->UpdateParamTable(n_new, n_old, s_new, s_old);
+ 
+  // TODO
+  float tree_elbo_tmp = tree_->ComputeELBO();
+  const float elbo = tree_elbo_tmp
+      - h / train_data_->size() * data_batch->size();
+
+  CHECK(!isnan(h));
+  CHECK(!isnan(elbo));
+  //CHECK_LT(elbo, 0) << elbo << " " << tree_elbo_tmp << " " <<  h / train_data_->size() * data_batch->size();
+
+  LOG(INFO) << iter_ << "," << elbo;
 }
 
 void Solver::Test() {
-
+  
 }
+
+//void Solver::RegisterPSTables() {
+//  if (thread_id_ == 0) {
+//    // param table 
+//    for (int r_idx = 0; r_idx < num_rows; ++r_idx) {
+//      outputs_global_table_.GetAsyncForced(ridx);
+//    }   
+//  }
+//}
+
 
 } // namespace ditree
 

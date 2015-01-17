@@ -14,6 +14,7 @@ class Tree {
   explicit Tree(const string& param_file, const int thread_id);
 
   void Init(const TreeParameter& param);
+  void InitParam();
 
   void UpdateParamTable(
       const UIntFloatMap& data_batch_n_new, 
@@ -25,8 +26,11 @@ class Tree {
 
   void SyncStructure();
 
+  float ComputeELBO();
+
   // number of nodes
   inline int size() { return vertexes_.size(); }
+  inline Vertex* root() { return root_; }
 
   inline Vertex* vertex(uint32 idx) {
 #ifdef DEBUG
@@ -34,10 +38,21 @@ class Tree {
 #endif
     return vertexes_[idx];
   }
+  inline const map<uint32, Vertex*>& vertexes() const {
+    return vertexes_;
+  }
+  inline const vector<Triple>& vertex_split_records() const {
+    return vertex_split_records_;
+  }
+  inline const vector<Triple>& vertex_merge_records() const {
+    return vertex_merge_records_;
+  }
 
  private: 
 
  private:
+  TreeParameter param_;
+
   Vertex* root_;
   // pseudo parent of root node, with fixed params
   Vertex* root_parent_;

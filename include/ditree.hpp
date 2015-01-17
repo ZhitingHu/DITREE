@@ -4,8 +4,9 @@
 #ifndef DITREE_DITREE_HPP_
 #define DITREE_DITREE_HPP_
 
+#include "common.hpp"
 #include "tree.hpp"
 #include "ditree_engine.hpp"
-
+#include "io.hpp"
 
 #endif

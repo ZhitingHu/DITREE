@@ -1,5 +1,5 @@
-#ifndef DITREE_BASE_HPP_
-#define DITREE_BASE_HPP_
+#ifndef DITREE_COMMON_HPP_
+#define DITREE_COMMON_HPP_
 
 #include <cmath>
 #include <fstream>  // NOLINT(readability/streams)
@@ -15,7 +15,6 @@
 #include <gflags/gflags.h>
 #include <glog/logging.h>
 #include <petuum_ps_common/include/petuum_ps.hpp>
-
 
 // gflags 2.1 issue: namespace google was changed to gflags without warning.
 // Luckily we will be able to use GFLAGS_GFAGS_H_ to detect if it is version
@@ -42,6 +41,7 @@ using std::pair;
 using std::set;
 using std::string;
 using std::stringstream;
+using std::max;
 
 // Constants
 const int kNumIntBits = 32;
@@ -50,13 +50,14 @@ enum RowTypes {
   //kDITreeDenseRowDtypeID = 0,
   kIntDenseRowDtypeID = 0,
   kFloatDenseRowDtypeID
-}
+};
 enum TableIds {
   kParamTableID = 0,
   kStructTableID,
   kParamTableMetaTableID,
-  kLossTableID
-}
+  kTrainLossTableID,
+  kTestLossTableID
+};
   // param table row organization
 enum ParamTableCols {
   //kColIdxParamTableLr = 0,
@@ -68,7 +69,14 @@ enum ParamTableCols {
   //kColIdxParamTableKappa,
   //kColIdxParamTableMeanStart
   kColIdxParamTableSStart
-}
+};
+
+const int kNumLossTableCols = 3;
+enum LossTableCols {
+  kColIdxLossTableIter = 0,
+  kColIdxLossTableTime,
+  kColIdxLossTableLoss,
+};
 
 // Typedefs
 typedef unsigned short uint16; // Should work for all x86/x64 compilers
@@ -76,6 +84,8 @@ typedef unsigned int   uint32; // Should work for all x86/x64 compilers
 typedef vector<float> FloatVec;
 typedef map<uint32, float> UIntFloatMap;
 typedef pair<const uint32, float> UIntFloatPair;
+class Vertex;
+typedef pair<const uint32, Vertex*> UIntVertexPair;
 
 } // namespace ditree
 

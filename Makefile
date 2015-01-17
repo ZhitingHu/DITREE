@@ -138,8 +138,8 @@ $(TOOL_BUILD_DIR)/%: $(TOOL_BUILD_DIR)/%.bin | $(TOOL_BUILD_DIR)
 	@ $(RM) $@
 	@ ln -s $(abspath $<) $@
 
-$(TOOL_BINS): %.bin : %.o $(DITREE_STATIC_NAME)
-	$(CXX) $< $(DITREE_STATIC_NAME) $(CXXFLAGS) $(INCFLAGS) \
+$(TOOL_BINS): %.bin : %.o $(DITREE_STATIC_NAME) $(PETUUM_PS_LIB)
+	$(CXX) $< $(DITREE_STATIC_NAME) $(PETUUM_PS_LIB) $(CXXFLAGS) $(INCFLAGS) \
         $(LDFLAGS) -o $@
 	@ echo
 

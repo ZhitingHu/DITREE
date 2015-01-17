@@ -8,14 +8,23 @@ namespace ditree {
 
 class Vertex {
  public:
-  explicit Vertex(const VertexParameter& param);
+  explicit Vertex() { Init(); }
+  explicit Vertex(const VertexParameter& param,
+      const TreeParameter& tree_param); 
+  void Init();
 
   void RecursConstructParam();
   void RecursComputeVarZPrior();
 
-  void UpdateParamTable();
+  void InitParamTable(const float n_init, const FloatVec& s_init);
+  void UpdateParamTable(const float data_batch_n_z_new,
+    const float data_batch_n_z_old, const UIntFloatMap& data_batch_s_z_new,
+    const UIntFloatMap& data_batch_s_z_old);
   void ReadParamTable();
 
+  float ComputeELBO();
+
+  inline FloatVec& mutable_mean() { return mean_; }
   inline const FloatVec& mean() const { return mean_; }
   inline const FloatVec& mean_history() const { 
 #ifdef DEBUG
@@ -24,7 +33,7 @@ class Vertex {
     return mean_history_; 
   }
   inline float kappa() const { return kappa_; }
-
+  inline float beta() const { return beta_; }
   inline float tau(const int idx) const { 
 #ifdef DEBUG
     CHECK_LT(idx, 2);
@@ -73,10 +82,12 @@ class Vertex {
   inline void set_right_sibling(Vertex* right_sibling) { 
     right_sibling_ = right_sibling; 
   }
+  inline void set_root() { root_ = true; }
   //inline void set_depth(const int depth) { depth_ = depth; }
 
  private:
   
+  void ConstructParam();
   inline void ComputeVarZPrior();
   inline void ComputeParam();
   inline float ComputeTaylorApprxCoeff(const float rho_apprx);
@@ -92,6 +103,8 @@ class Vertex {
   vector<Vertex*> children_;
   // a vextex's children are guaranteed to be in the same table
   uint32 child_table_idx_;
+  // root node has depth=1, psi=1
+  bool root_;
   
   // depth of this node (root has depth 1)
   //int depth_;
@@ -137,6 +150,8 @@ class Vertex {
   float kappa_1_;
   float kappa_2_;
   float beta_;
+  float alpha_;
+  float gamma_;
 };
 
 } // namespace ditree

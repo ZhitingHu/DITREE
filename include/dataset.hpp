@@ -4,14 +4,16 @@
 #include "common.hpp"
 #include "context.hpp"
 #include "data_batch.hpp"
+#include "datum.hpp"
 
 namespace ditree {
 
 class Dataset {
  public:
-  explicit Dataset();
+  explicit Dataset() {};
   
-  inline DataBatch* GetNextDataBatch(); 
+  DataBatch* GetNextDataBatch();
+ 
   inline Datum* datum(int idx) {
 #ifdef DEBUG
     CHECK_LT(idx, data_.size());
@@ -19,15 +21,20 @@ class Dataset {
     return data_[idx];
   }
 
+  inline int size() { return data_.size(); }
   inline vector<Datum*>& data() { return data_; }
-  inline int vocabulary_size() { return vocabulary_size_; }
+
+  void Init(const string& filename);
 
  private:
+  void ReadData(const string& filename);
 
  private:
   vector<DataBatch*> data_batches_;
   vector<Datum*> data_;
-  int vocabulary_size_;
+  // 
+  int iter_;
+  vector<int> data_batch_queue_;
 };
 
 } // namespace ditree
