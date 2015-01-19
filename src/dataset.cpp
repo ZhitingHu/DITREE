@@ -42,6 +42,9 @@ void Dataset::Init(const string& filename) {
 }
 
 void Dataset::ReadData(const string& filename) {
+  //TODO
+  FloatVec tot_word(Context::vocab_size());
+
   fstream input(filename.c_str(), ios::in | ios::binary);
   CHECK(input.is_open()) << "File not found: " << filename;
   int num_doc, doc_len, word_id;
@@ -57,6 +60,9 @@ void Dataset::ReadData(const string& filename) {
       input.read((char*)&word_id, sizeof(int));
       input.read((char*)&word_weight, sizeof(float));
       datum->AddWord(word_id, word_weight);
+    
+      //TODO 
+      tot_word[word_id] += word_weight;
     }
     data_.push_back(datum);
     counter++;
@@ -66,14 +72,26 @@ void Dataset::ReadData(const string& filename) {
     }
   }
   input.close();
+
+  //TODO
+  ostringstream oss;
+  oss << "============================\n";
+  for (int i=0; i<tot_word.size(); ++i) {
+    oss << tot_word[i] << " ";
+  }
+  oss << "\n";
+  LOG(INFO) << oss.str();
 }
 
 DataBatch* Dataset::GetNextDataBatch() {
-  LOG(INFO) << "get next batch iter_=" << iter_ << " size " << data_batches_.size();
+  LOG(INFO) << "Get next batch iter_=" << iter_ 
+    << " " << data_batch_queue[iter_] << " size " << data_batches_.size();
   boost::mutex::scoped_lock lock(data_access_mutex);
-  DataBatch* next_batch = data_batches_[iter_++];
+  //DataBatch* next_batch = data_batches_[iter_++];
+  DataBatch* next_batch = data_batches_[data_batch_queue[iter++]];
   if (iter_ >= data_batches_.size()) {
     iter_ = 0;
+    std::random_shuffle(data_batch_queue_.begin(), data_batch_queue_.end());
   }
   return next_batch;
 }

@@ -14,7 +14,7 @@ class Dataset {
   
   DataBatch* GetNextDataBatch();
  
-  inline Datum* datum(int idx) {
+  const inline Datum* datum(int idx) {
 #ifdef DEBUG
     CHECK_LT(idx, data_.size());
 #endif

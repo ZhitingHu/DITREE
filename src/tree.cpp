@@ -56,6 +56,8 @@ void Tree::Init(const TreeParameter& param) {
       vertex->add_child(vertexes_[child_index]);
     } 
   }
+  // Initialize depths
+  root_->RecursSetDepth(0);
 }
 
 // Init mean_ of each vertex
@@ -69,6 +71,7 @@ void Tree::InitParam() {
   FloatVec& root_parent_mean = root_parent_->mutable_mean();
   root_parent_mean.clear();
   // Initialize pesudo parent of root_
+  // Assume the mean vector has norm = 1
   ditree::Context& context = ditree::Context::Get();
   const string& mean_file = context.get_string("mean");
   fstream input(mean_file.c_str(), ios::in);
@@ -83,11 +86,10 @@ void Tree::InitParam() {
   if (client_id_ == 0 && thread_id_ == 0) {
     // Use the data mean to initialize
     BOOST_FOREACH(UIntVertexPair& ele, vertexes_) {
-      ele.second->InitParamTable(0, root_parent_mean);
+      ele.second->InitParam(0, root_parent_mean);
     }
     LOG(INFO) << "Init vertexes' mean done.";
   }
-  //petuum::PSTableGroup::GlobalBarrier();
 }
 
 void Tree::UpdateParamTable(

@@ -45,7 +45,7 @@ using std::max;
 
 // Constants
 const int kNumIntBits = 32;
-const float kFloatEpsilon = 1e-8;
+const float kFloatEpsilon = 1e-6;
 enum RowTypes {
   //kDITreeDenseRowDtypeID = 0,
   kIntDenseRowDtypeID = 0,
@@ -84,6 +84,7 @@ typedef unsigned int   uint32; // Should work for all x86/x64 compilers
 typedef vector<float> FloatVec;
 typedef map<uint32, float> UIntFloatMap;
 typedef pair<const uint32, float> UIntFloatPair;
+typedef pair<const uint32, UIntFloatMap> UIntUIntFloatMapPair; 
 class Vertex;
 typedef pair<const uint32, Vertex*> UIntVertexPair;
 

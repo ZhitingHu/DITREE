@@ -16,7 +16,7 @@ class Vertex {
   void RecursConstructParam();
   void RecursComputeVarZPrior();
 
-  void InitParamTable(const float n_init, const FloatVec& s_init);
+  void InitParam(const float n_init, const FloatVec& s_init);
   void UpdateParamTable(const float data_batch_n_z_new,
     const float data_batch_n_z_old, const UIntFloatMap& data_batch_s_z_new,
     const UIntFloatMap& data_batch_s_z_old);
@@ -83,7 +83,8 @@ class Vertex {
     right_sibling_ = right_sibling; 
   }
   inline void set_root() { root_ = true; }
-  //inline void set_depth(const int depth) { depth_ = depth; }
+  inline void set_depth(const int depth) { depth_ = depth; }
+  void RecursSetDepth(const int parent_depth);
 
  private:
   
@@ -107,7 +108,7 @@ class Vertex {
   bool root_;
   
   // depth of this node (root has depth 1)
-  //int depth_;
+  int depth_;
 
   /// (global) parameters
   // emission ~ vMF(mean_, kappa_)

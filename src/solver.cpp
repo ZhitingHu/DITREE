@@ -91,17 +91,13 @@ void Solver::Solve(const char* resume_file) {
       Test();
     }
 
-    tree_->ReadParamTable();
-    LOG(INFO) << "read param table done. ";
-    root_->RecursConstructParam();
-    LOG(INFO) << "recurs param done. ";
-
     // main VI
     Update();
     LOG(INFO) << "update done. ";
     
     petuum::PSTableGroup::Clock();
  
+
     // Display
     if (param_.display() && iter_ % param_.display() == 0) {
       //TODO: display
@@ -127,9 +123,13 @@ void Solver::Update() {
   float h = 0;
   /// e-step (TODO: openmp)
   UIntFloatMap n_old(data_batch->n());
-  map<uint32, UIntFloatMap> s_old(data_batch->s());
   UIntFloatMap& n_new = data_batch->n();
+  map<uint32, UIntFloatMap> s_old(data_batch->s());
   map<uint32, UIntFloatMap>& s_new = data_batch->s();
+  BOOST_FOREACH(UIntUIntFloatMapPair& s_new_ele, s_new) {
+    ResetUIntFloatMap(s_new_ele.second);
+  }
+
 #ifdef DEBUG
   CHECK_EQ(n_new.size(), tree_->size());
   CHECK_EQ(s_new.size(), tree_->size());
@@ -143,11 +143,15 @@ void Solver::Update() {
   LOG(INFO) << "recurs var z prior done. ";
   // likelihood
   LOG(INFO) << "databatch " << data_batch->data_idx_begin() << " " << data_batch->size();
+
+  //TODO
+  UIntFloatMap data_batch_words(s_new[0]);
+  
   int d_idx = data_batch->data_idx_begin();
   int data_idx_end = d_idx + data_batch->size();
   for (; d_idx < data_idx_end; ++d_idx) {
     LOG(INFO) << "data " << d_idx;
-    Datum* datum = train_data_->datum(d_idx);
+    const Datum* datum = train_data_->datum(d_idx);
     UIntFloatMap log_weights;
     float max_log_weight = -1;
     float log_weight_sum = 0;
@@ -169,48 +173,97 @@ void Solver::Update() {
     CHECK(!isnan(log_weight_sum));
     CHECK(!isinf(log_weight_sum));
 #endif
+    float n_prob = 0;
     if (d_idx == data_batch->data_idx_begin()) {
+      LOG(INFO) << "here first datum of the batch";
       BOOST_FOREACH(UIntFloatPair& n_new_ele, n_new) {
-        n_new_ele.second = exp(log_weights[n_new_ele.first] - log_weight_sum);
+        float datum_z_prob = exp(log_weights[n_new_ele.first] - log_weight_sum);
+        n_new_ele.second = datum_z_prob;
 
         LOG(INFO) << "n_new_ele " << n_new_ele.first << " " 
             << n_new_ele.second << " " << exp(log_weights[n_new_ele.first] - log_weight_sum);
 
-        CopyUIntFloatMap(datum->data(), n_new_ele.second, 
-            s_new[n_new_ele.first]);
+        // have reset s_new at the beginning
+        AccumUIntFloatMap(datum->data(), datum_z_prob, s_new[n_new_ele.first]);
 
-        h += exp(log_weights[n_new_ele.first] - log_weight_sum) 
-            * (log_weights[n_new_ele.first] - log_weight_sum);
+        h += datum_z_prob * (log_weights[n_new_ele.first] - log_weight_sum);
         LOG(INFO) << "h " << h << " = " << n_new_ele.second << " * " 
            << (log_weights[n_new_ele.first] - log_weight_sum) << " " 
-           << exp(log_weights[n_new_ele.first] - log_weight_sum);
+           << datum_z_prob;
+
+        n_prob += datum_z_prob;
       }
     } else {
       BOOST_FOREACH(UIntFloatPair& n_new_ele, n_new) {
-        n_new_ele.second += exp(log_weights[n_new_ele.first] - log_weight_sum);
+        float datum_z_prob = exp(log_weights[n_new_ele.first] - log_weight_sum);
+        n_new_ele.second += datum_z_prob;
         
         LOG(INFO) << "n_new_ele " << n_new_ele.first << " " 
             << n_new_ele.second << " " << exp(log_weights[n_new_ele.first] - log_weight_sum);
 
-        AccumUIntFloatMap(datum->data(), n_new_ele.second,
-            s_new[n_new_ele.first]);
+        AccumUIntFloatMap(datum->data(), datum_z_prob, s_new[n_new_ele.first]);
 
-        h += exp(log_weights[n_new_ele.first] - log_weight_sum) 
-            * (log_weights[n_new_ele.first] - log_weight_sum);
+        h += datum_z_prob * (log_weights[n_new_ele.first] - log_weight_sum);
         LOG(INFO) << "h " << h << " = " 
-           << exp(log_weights[n_new_ele.first] - log_weight_sum) << " * "
+           << datum_z_prob  << " * "
            << (log_weights[n_new_ele.first] - log_weight_sum);
+
+        n_prob += datum_z_prob;
       }
     }
+    //CHECK_GE(n_prob, 1.0 - kFloatEpsilon) << n_prob;    
+    //CHECK_LE(n_prob, 1.0 + kFloatEpsilon) << n_prob;    
   } // end of datum
 
+  //TODO
   BOOST_FOREACH(const UIntFloatPair& ele, n_old) {
     LOG(INFO) << "n_old " << ele.first << " " << ele.second;
   }
   BOOST_FOREACH(const UIntFloatPair& ele, n_new) {
     LOG(INFO) << "n_new " << ele.first << " " << ele.second;
   }
+  LOG(INFO) << "s_old ";
+  ostringstream oss;
+  for (int i=0; i<8; ++i) {
+    float sum = 0;
+    for (int v=0; v<3; ++v) {
+      sum += s_old[v][i];
+    }
+    oss << sum << "\t";
+  }
+  //BOOST_FOREACH(const UIntUIntFloatMapPair& s_ele, s_old) {
+  //  oss << s_ele.first << "\t";
+  //  BOOST_FOREACH(const UIntFloatPair& s_ele_ele, s_ele.second) {
+  //    oss << s_ele_ele.first << ":" << s_ele_ele.second << "\t";
+  //  }
+  //  oss << "\n"; 
+  //}
+  LOG(INFO) << oss.str();
+
+  LOG(INFO) << "s_new ";
+  oss.str("");
+  oss.clear();
+  for (int i=0; i<8; ++i) {
+    float sum = 0;
+    for (int v=0; v<3; ++v) {
+      sum += s_new[v][i];
+    }
+    oss << sum << "\t";
+  }
+  //BOOST_FOREACH(const UIntUIntFloatMapPair& s_ele, s_new) {
+  //  oss << s_ele.first << "\t";
+  //  BOOST_FOREACH(const UIntFloatPair& s_ele_ele, s_ele.second) {
+  //    oss << s_ele_ele.first << ":" << s_ele_ele.second << "\t";
+  //  }
+  //  oss << "\n"; 
+  //}
+  LOG(INFO) << oss.str();
+
   tree_->UpdateParamTable(n_new, n_old, s_new, s_old);
+  tree_->ReadParamTable();
+  LOG(INFO) << "read param table done. ";
+  root_->RecursConstructParam();
+  LOG(INFO) << "recurs param done. ";
  
   // TODO
   float tree_elbo_tmp = tree_->ComputeELBO();
@@ -221,7 +274,7 @@ void Solver::Update() {
   CHECK(!isnan(elbo));
   //CHECK_LT(elbo, 0) << elbo << " " << tree_elbo_tmp << " " <<  h / train_data_->size() * data_batch->size();
 
-  LOG(INFO) << iter_ << "," << elbo;
+  LOG(ERROR) << iter_ << "," << elbo << "\t" << tree_elbo_tmp << "\t" << h / train_data_->size() * data_batch->size();
 }
 
 void Solver::Test() {
@@ -236,7 +289,6 @@ void Solver::Test() {
 //    }   
 //  }
 //}
-
 
 } // namespace ditree
 

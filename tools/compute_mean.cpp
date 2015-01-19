@@ -49,8 +49,15 @@ int main(int argc, char** argv) {
   }
   input.close();
 
+  // average & normalize
+  float mean_norm = 0;
   for (int v = 0; v < FLAGS_vocab_size; ++v) {
-    output << (mean[v] / num_doc) << endl;
+    mean[v] /= num_doc;
+    mean_norm += mean[v] * mean[v];
+  }
+  mean_norm = sqrt(mean_norm);
+  for (int v = 0; v < FLAGS_vocab_size; ++v) {
+    output << mean[v] / mean_norm << endl;
   }
   output.close();
   

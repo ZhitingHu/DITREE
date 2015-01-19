@@ -22,6 +22,11 @@ class Triple {
   float w_;
 };
 
+inline void ResetUIntFloatMap(UIntFloatMap& target) {
+  BOOST_FOREACH(UIntFloatPair& t_ele, target) {
+    t_ele.second = 0;
+  }
+}
 inline void CopyUIntFloatMap(const UIntFloatMap& source, 
     const float coeff, UIntFloatMap& target) {
   BOOST_FOREACH(const UIntFloatPair& s_ele, source) {

@@ -49,6 +49,13 @@ void Vertex::Init() {
   var_n_sum_for_sibling_ = 0;
 }
 
+void RecursSetDepth(const int parent_depth) {
+  depth_ = parent_depth + 1;
+  for (int c_idx = 0; c_idx < children_.size(); ++c_idx) {
+    children_[c_idx]->RecursSetDepth(depth_); 
+  }
+}
+
 void Vertex::RecursConstructParam() {
   // Construct from leaves to root
   // and from right to left
@@ -70,14 +77,14 @@ void Vertex::ConstructParam() {
   var_n_sum_for_parent_ = children_n_sum + n_;
 
   // sigma
-  LOG(INFO) << idx_ << " sigma_[0] " << sigma_[0] << " " 
-      << (sigma_fixed_part_[0] + var_n_sum_for_parent_) << " " << children_n_sum << " " << n_;
+  //LOG(INFO) << idx_ << " sigma_[0] " << sigma_[0] << " " 
+  //    << (sigma_fixed_part_[0] + var_n_sum_for_parent_) << " " << children_n_sum << " " << n_;
 
   sigma_[0] = sigma_fixed_part_[0] + var_n_sum_for_parent_;
   var_n_sum_for_sibling_ = var_n_sum_for_parent_
       + (right_sibling_ ? right_sibling_->var_n_sum_for_sibling() : 0);
 
-  LOG(INFO) << idx_ << " sigma_[1] " << sigma_[1] << " " << (sigma_fixed_part_[1] + var_n_sum_for_sibling_ - var_n_sum_for_parent_);
+  //LOG(INFO) << idx_ << " sigma_[1] " << sigma_[1] << " " << (sigma_fixed_part_[1] + var_n_sum_for_sibling_ - var_n_sum_for_parent_);
 
   sigma_[1] = sigma_fixed_part_[1] 
       + (right_sibling_ ? right_sibling_->var_n_sum_for_sibling() : 0);
@@ -132,22 +139,43 @@ void Vertex::ConstructParam() {
     oss << mean_[i] << " ";
   }
   oss << std::endl;
-  LOG(ERROR) << oss.str();
+  LOG(INFO) << oss.str();
+  LOG(INFO) << "kappa_ = " << kappa_;
 }
 
-void Vertex::InitParamTable(const float n_init, const FloatVec& s_init) {
-#ifdef DEBUG
-  CHECK_EQ(s_init.size(), s_.size());
-#endif
-  petuum::Table<float>* param_table = Context::param_table();
-  petuum::DenseUpdateBatch<float> update_batch(
-      0, kColIdxParamTableSStart + s_.size());
-  update_batch[kColIdxParamTableN] = n_init; 
-  for (int w_idx = 0; w_idx < s_.size(); ++w_idx) {
-    //update_batch[kColIdxParamTableSStart + w_idx] = s_init[w_idx];
-    update_batch[kColIdxParamTableSStart + w_idx] = Context::rand();
+void Vertex::InitParam(const float n_init, const FloatVec& s_init) {
+  // Init param table
+//#ifdef DEBUG
+//  CHECK_EQ(s_init.size(), s_.size());
+//#endif
+//  petuum::Table<float>* param_table = Context::param_table();
+//  petuum::DenseUpdateBatch<float> update_batch(
+//      0, kColIdxParamTableSStart + s_.size());
+//  update_batch[kColIdxParamTableN] = n_init; 
+//  for (int w_idx = 0; w_idx < s_.size(); ++w_idx) {
+//    //update_batch[kColIdxParamTableSStart + w_idx] = s_init[w_idx];
+//    update_batch[kColIdxParamTableSStart + w_idx] = Context::rand();
+//  }
+//  param_table->DenseBatchInc(idx_, update_batch);
+ 
+  /// Init params
+  // Must do this, since a vertex's param depends on both parent 
+  // and children in ConstructParam()
+//  float s_init_norm = 0;
+//  for (int s_idx = 0; s_idx < s_init.size();; ++s_idx) {
+//    s_init_norm = s_init[s_idx] * s_init[s_idx];
+//  }
+//  s_init_norm = sqrt(s_init_norm);
+//#ifdef DEBUG
+//    CHECK_EQ(s_init.size(), mean_size());
+//#endif
+//  for (int s_idx = 0; s_idx < s_init.size(); ++s_idx) {
+//    mean_[s_idx] = s_init[s_idx] / s_init_norm;
+//  }
+  //TODO: history
+  for (int s_idx = 0; s_idx < s_init.size(); ++s_idx) {
+    mean_[s_idx] = s_init[s_idx]; 
   }
-  param_table->DenseBatchInc(idx_, update_batch);
 }
 
 void Vertex::UpdateParamTable(
@@ -184,14 +212,14 @@ void Vertex::ReadParamTable() {
   }
 
   // TODO
-  LOG(INFO) << "Read PS Table";
+  LOG(INFO) << "Read PS Table - thread " << idx_;
   ostringstream oss;
   oss << "n_ " << n_ << "\n";
   for (int i = 0; i < s_.size(); ++i) {
     oss << s_[i] << " ";
   }
   oss << "\n";
-  LOG(ERROR) << oss.str();
+  LOG(INFO) << oss.str();
 }
 
 #if 0
@@ -403,21 +431,28 @@ inline float Vertex::ComputeTaylorApprxCoeff(const float rho_apprx) {
 
 float Vertex::ComputeELBO() {
   float elbo = 0;
-  elbo += beta_ * DotProdFloatVectors(mean_, s_) + n_ * var_z_prior_;
+  elbo += beta_ * DotProdFloatVectors(mean_, s_) 
+      + n_ * LogVMFProbNormalizer(mean_.size(), beta_)
+      + n_ * var_z_prior_;
 
   CHECK(!isnan(elbo));
+  LOG(INFO) << "index = " << idx_ << "\tELBO = " << elbo << "\t" 
+      << beta_ * DotProdFloatVectors(mean_, s_) << "\t" << n_ 
+      << "\t" << n_ * var_z_prior_ << "\t" 
+      << n_ * LogVMFProbNormalizer(mean_.size(), beta_);
 
   elbo += (1 - tau_[0]) * (digamma(tau_[0]) - digamma(tau_[0] + tau_[1]))
       + (alpha_ - tau_[1]) * (digamma(tau_[1]) - digamma(tau_[0] + tau_[1]));
   if (!root_) {
-      elbo 
-          += (1 - sigma_[0]) 
-          * (digamma(sigma_[0]) - digamma(sigma_[0] + sigma_[1]))
-          + (gamma_ - sigma_[1]) 
-          * (digamma(sigma_[1]) - digamma(sigma_[0] + sigma_[1]));
+    elbo 
+        += (1 - sigma_[0]) 
+        * (digamma(sigma_[0]) - digamma(sigma_[0] + sigma_[1]))
+        + (gamma_ - sigma_[1]) 
+        * (digamma(sigma_[1]) - digamma(sigma_[0] + sigma_[1]));
   }
       
   CHECK(!isnan(elbo));
+  LOG(INFO) << "index = " << idx_ << "\tELBO = " << elbo;
 
   float rho = 0;
   const FloatVec& parent_mean = parent_->mean(); 
@@ -437,11 +472,13 @@ float Vertex::ComputeELBO() {
   }
 
   CHECK(!isnan(elbo));
+  LOG(INFO) << "index = " << idx_ << "\tELBO = " << elbo;
 
   elbo += LogVMFProbNormalizer(mean_.size(), rho)
       - LogVMFProbNormalizer(mean_.size(), kappa_);
 
   CHECK(!isnan(elbo));
+  LOG(INFO) << "index = " << idx_ << "\tELBO = " << elbo << " rho=" << rho << " kappa=" << kappa_;
 
   return elbo;
 }

@@ -16,12 +16,11 @@ class Datum {
 #endif
     data_[word_id] = word_weight;
   }
-  const UIntFloatMap& data() { return data_; }
+  const UIntFloatMap& data() const { return data_; }
  private:
 
  private:
   UIntFloatMap data_;
-
 };
 
 } // namespace ditree
