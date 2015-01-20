@@ -31,14 +31,14 @@ DEFINE_bool(oplog_dense_serialized, true,
 // PS Table Organization Paremeters
 DEFINE_int32(max_depth, 10,
     "Maximum depth of a vertex.");
-DEFINE_int32(max_num_children_per_vertex, 20,
+DEFINE_int32(max_num_children_per_vertex, 10,
     "Maximum number of children of a vertex.");
 DEFINE_int32(max_num_vertexes, 10000,
     "Maximum number of children of a vertex.");
-DEFINE_int32(max_num_parents_per_table, 5,
+DEFINE_int32(max_size_per_table, 100,
     "Maximum number of parent of a table.");
-DEFINE_int32(num_layer_per_table, 2,
-    "Number of node layers of a table.");
+//DEFINE_int32(num_layer_per_table, 2,
+//    "Number of node layers of a table.");
 DEFINE_int32(num_table_id_bits, 8,
     "Number of digit for representing table id, must be in (0, 32).");
 

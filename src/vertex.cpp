@@ -49,7 +49,7 @@ void Vertex::Init() {
   var_n_sum_for_sibling_ = 0;
 }
 
-void RecursSetDepth(const int parent_depth) {
+void Vertex::RecursSetDepth(const int parent_depth) {
   depth_ = parent_depth + 1;
   for (int c_idx = 0; c_idx < children_.size(); ++c_idx) {
     children_[c_idx]->RecursSetDepth(depth_); 

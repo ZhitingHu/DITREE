@@ -42,6 +42,12 @@ using std::set;
 using std::string;
 using std::stringstream;
 using std::max;
+using std::min;
+
+class DataBatch;
+class Dataset;
+class Tree;
+class Vertex;
 
 // Constants
 const int kNumIntBits = 32;
@@ -85,8 +91,8 @@ typedef vector<float> FloatVec;
 typedef map<uint32, float> UIntFloatMap;
 typedef pair<const uint32, float> UIntFloatPair;
 typedef pair<const uint32, UIntFloatMap> UIntUIntFloatMapPair; 
-class Vertex;
 typedef pair<const uint32, Vertex*> UIntVertexPair;
+typedef pair<uint32, int> IdxCntPair;
 
 } // namespace ditree
 

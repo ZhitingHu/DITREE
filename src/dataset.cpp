@@ -85,10 +85,10 @@ void Dataset::ReadData(const string& filename) {
 
 DataBatch* Dataset::GetNextDataBatch() {
   LOG(INFO) << "Get next batch iter_=" << iter_ 
-    << " " << data_batch_queue[iter_] << " size " << data_batches_.size();
+    << " " << data_batch_queue_[iter_] << " size " << data_batches_.size();
   boost::mutex::scoped_lock lock(data_access_mutex);
   //DataBatch* next_batch = data_batches_[iter_++];
-  DataBatch* next_batch = data_batches_[data_batch_queue[iter++]];
+  DataBatch* next_batch = data_batches_[data_batch_queue_[iter_++]];
   if (iter_ >= data_batches_.size()) {
     iter_ = 0;
     std::random_shuffle(data_batch_queue_.begin(), data_batch_queue_.end());

@@ -41,7 +41,7 @@ class Solver {
   int iter_;
 
   // for split
-  vector<DataBatch> target_data_;
+  vector<DataBatch> split_reference_data_;
 
   petuum::Table<float> train_loss_table_;
   petuum::Table<float> test_loss_table_;

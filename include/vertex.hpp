@@ -66,6 +66,9 @@ class Vertex {
 
   inline int idx() const { return idx_; }
 
+  inline const vector<Vertex*>& children() {
+    return children_;
+  }
   inline void add_child(Vertex* child) {
     children_.push_back(child);
     child->set_parent(this);
@@ -75,6 +78,7 @@ class Vertex {
       child_left_sibling->set_right_sibling(child);
     }
   }
+  inline Vertex* parent() { return parent_; }
   inline void set_parent(Vertex* parent) { parent_ = parent; }
   inline void set_left_sibling(Vertex* left_sibling) { 
     left_sibling_ = left_sibling; 
@@ -82,7 +86,12 @@ class Vertex {
   inline void set_right_sibling(Vertex* right_sibling) { 
     right_sibling_ = right_sibling; 
   }
+  inline void set_child_table_idx(const uint32 child_table_idx) { 
+    child_table_idx_ = child_table_idx; 
+  }
+  inline bool root() const { return root_; }
   inline void set_root() { root_ = true; }
+  inline int depth() { return depth_; }
   inline void set_depth(const int depth) { depth_ = depth; }
   void RecursSetDepth(const int parent_depth);
 
@@ -106,9 +115,9 @@ class Vertex {
   uint32 child_table_idx_;
   // root node has depth=1, psi=1
   bool root_;
-  
   // depth of this node (root has depth 1)
   int depth_;
+
 
   /// (global) parameters
   // emission ~ vMF(mean_, kappa_)

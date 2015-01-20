@@ -16,15 +16,34 @@ class Context {
 public:
   static Context& Get();
 
-  int get_int32(std::string key);
-  double get_double(std::string key);
-  bool get_bool(std::string key);
-  std::string get_string(std::string key);
+  static inline int get_int32(std::string key) {
+    return atoi(get_string(key).c_str());
+  }
+  static inline double get_double(std::string key) {
+    return atof(get_string(key).c_str());
+  }
+  static inline bool get_bool(std::string key) {
+    return get_string(key).compare("true") == 0;
+  }
+  static inline std::string get_string(std::string key) {
+    auto it = Get().ctx_.find(key);
+    LOG_IF(FATAL, it == Get().ctx_.end())
+        << "Failed to lookup " << key << " in context.";
+    return it->second;
+  }
 
-  void set(std::string key, int value);
-  void set(std::string key, double value);
-  void set(std::string key, bool value);
-  void set(std::string key, std::string value);
+  static inline void set(std::string key, int value) {
+    Get().ctx_[key] = std::to_string(value);
+  }
+  static inline void set(std::string key, double value) {
+    Get().ctx_[key] = std::to_string(value);
+  }
+  static inline void set(std::string key, bool value) {
+    Get().ctx_[key] = (value) ? "true" : "false";
+  }
+  static inline void set(std::string key, std::string value) {
+    Get().ctx_[key] = value;
+  }
 
   enum Phase { kInit, kSplit, kMerge, kVIAfterSplit, kVIAfterMerge };
 //  inline static Phase phase(const int thread_id) { 
