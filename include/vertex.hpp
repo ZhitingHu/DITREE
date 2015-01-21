@@ -14,7 +14,9 @@ class Vertex {
   void Init();
 
   void RecursConstructParam();
+  void ConstructParam();
   void RecursComputeVarZPrior();
+  void ComputeVarZPrior();
 
   void InitParam(const float n_init, const FloatVec& s_init);
   void UpdateParamTable(const float data_batch_n_z_new,
@@ -23,6 +25,9 @@ class Vertex {
   void ReadParamTable();
 
   float ComputeELBO();
+
+  void UpdateParamLocal(const float n_z_new, const float n_z_old,
+    const UIntFloatMap& s_z_new, const UIntFloatMap& s_z_old);
 
   inline FloatVec& mutable_mean() { return mean_; }
   inline const FloatVec& mean() const { return mean_; }
@@ -65,6 +70,10 @@ class Vertex {
   inline float var_z_prior() const { return var_z_prior_; }
 
   inline int idx() const { return idx_; }
+  inline void set_idx(const uint32 idx) { idx_ = idx; }
+  inline float n() const { return n_; }
+  inline const FloatVec& s() const { return s_; }
+  inline FloatVec& mutable_s() { return s_; }
 
   inline const vector<Vertex*>& children() {
     return children_;
@@ -72,10 +81,22 @@ class Vertex {
   inline void add_child(Vertex* child) {
     children_.push_back(child);
     child->set_parent(this);
+    child->set_depth(depth_ + 1);
     if (children_.size() > 1) {
       Vertex* child_left_sibling = children_[children_.size() - 2];
       child->set_left_sibling(child_left_sibling);
       child_left_sibling->set_right_sibling(child);
+    }
+  }
+  // Add temp child, do not set the right_sibling of the 
+  //   existing right-most child
+  inline void add_temp_child(Vertex* child) {
+    children_.push_back(child);
+    child->set_parent(this);
+    child->set_depth(depth_ + 1);
+    if (children_.size() > 1) {
+      Vertex* child_left_sibling = children_[children_.size() - 2];
+      child->set_left_sibling(child_left_sibling);
     }
   }
   inline Vertex* parent() { return parent_; }
@@ -86,6 +107,9 @@ class Vertex {
   inline void set_right_sibling(Vertex* right_sibling) { 
     right_sibling_ = right_sibling; 
   }
+  inline uint32 child_table_idx() const { 
+    return child_table_idx_; 
+  }
   inline void set_child_table_idx(const uint32 child_table_idx) { 
     child_table_idx_ = child_table_idx; 
   }
@@ -95,11 +119,10 @@ class Vertex {
   inline void set_depth(const int depth) { depth_ = depth; }
   void RecursSetDepth(const int parent_depth);
 
+  void CopyParamsFrom(const Vertex* source);
+
  private:
   
-  void ConstructParam();
-  inline void ComputeVarZPrior();
-  inline void ComputeParam();
   inline float ComputeTaylorApprxCoeff(const float rho_apprx);
 
  private:
@@ -107,6 +130,7 @@ class Vertex {
 
   /// tree structure
   uint32 idx_;
+  uint32 governing_table_idx_;
   Vertex* parent_;
   Vertex* left_sibling_;
   Vertex* right_sibling_;
@@ -117,7 +141,6 @@ class Vertex {
   bool root_;
   // depth of this node (root has depth 1)
   int depth_;
-
 
   /// (global) parameters
   // emission ~ vMF(mean_, kappa_)

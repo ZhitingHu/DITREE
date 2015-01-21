@@ -24,9 +24,9 @@ class DataBatch {
  private:
 
   void UpdateSuffStatStructBySplit(
-      const vector<Triple>& vertex_split_records);
+      const vector<pair<uint32, uint32> >& vertex_split_records);
   void UpdateSuffStatStructByMerge(
-      const vector<Triple>& vertex_merge_records);
+      const vector<pair<uint32, uint32> >& vertex_merge_records);
 
  private:
   int data_idx_begin_;

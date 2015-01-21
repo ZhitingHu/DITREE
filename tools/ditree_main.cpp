@@ -37,8 +37,8 @@ DEFINE_int32(max_num_vertexes, 10000,
     "Maximum number of children of a vertex.");
 DEFINE_int32(max_size_per_table, 100,
     "Maximum number of parent of a table.");
-//DEFINE_int32(num_layer_per_table, 2,
-//    "Number of node layers of a table.");
+DEFINE_int32(max_split_per_table, 1,
+    "Maximum times of split each epoch per table.");
 DEFINE_int32(num_table_id_bits, 8,
     "Number of digit for representing table id, must be in (0, 32).");
 

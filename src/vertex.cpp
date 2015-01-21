@@ -14,10 +14,6 @@ Vertex::Vertex(const VertexParameter& param, const TreeParameter& tree_param) {
 #ifdef DEBUG
   CHECK_GT(Context::vocab_size(), 0);
 #endif
-  mean_.resize(Context::vocab_size());
-  s_.resize(Context::vocab_size());
-  n_ = 0;
-
   kappa_0_ = tree_param.kappa_0();
   kappa_1_ = tree_param.kappa_1(); 
   kappa_2_ = tree_param.kappa_2(); 
@@ -47,6 +43,10 @@ void Vertex::Init() {
   var_z_prior_part_for_sibling_ = 0;
   var_n_sum_for_parent_ = 0;
   var_n_sum_for_sibling_ = 0;
+
+  mean_.resize(Context::vocab_size());
+  s_.resize(Context::vocab_size());
+  n_ = 0;
 }
 
 void Vertex::RecursSetDepth(const int parent_depth) {
@@ -189,9 +189,6 @@ void Vertex::UpdateParamTable(
   update_batch[kColIdxParamTableN] 
       = data_batch_n_z_new - data_batch_n_z_old;
 
-  //TODO
-  //CHECK_GE(update_batch[kColIdxParamTableN], 0) << "idx="<< idx_ << " " << data_batch_n_z_new << " " << data_batch_n_z_old;
-
   BOOST_FOREACH(const UIntFloatPair& ele, data_batch_s_z_new) {
     update_batch[kColIdxParamTableSStart + ele.first] 
         = ele.second - data_batch_s_z_old.find(ele.first)->second;
@@ -220,6 +217,14 @@ void Vertex::ReadParamTable() {
   }
   oss << "\n";
   LOG(INFO) << oss.str();
+}
+
+void Vertex::UpdateParamLocal(const float n_z_new, const float n_z_old,
+    const UIntFloatMap& s_z_new, const UIntFloatMap& s_z_old) {
+  BOOST_FOREACH(const UIntFloatPair& ele, s_z_new) {
+    s_[ele.first] += ele.second - s_z_old.find(ele.first)->second;
+  }
+  n_ += n_z_new - n_z_old;
 }
 
 #if 0
@@ -481,6 +486,13 @@ float Vertex::ComputeELBO() {
   LOG(INFO) << "index = " << idx_ << "\tELBO = " << elbo << " rho=" << rho << " kappa=" << kappa_;
 
   return elbo;
+}
+
+void Vertex::CopyParamsFrom(const Vertex* source) {
+  (*this) = (*source);
+  Init();
+  std::fill(s_.begin(), s_.end(), 0); 
+  n_ = 0;
 }
 
 } // namespace ditree

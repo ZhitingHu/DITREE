@@ -39,55 +39,39 @@ void DataBatch::InitSuffStatStruct(const Tree* tree,
 }
 
 void DataBatch::UpdateSuffStatStructBySplit(
-    const vector<Triple>& vertex_split_records) { 
-
-  LOG(INFO) <<"iM HEJRE";
-  for (int idx = 0; idx < vertex_split_records.size(); ++idx) {
-    const Triple& rec = vertex_split_records[idx];
+    const vector<pair<uint32, uint32> >& vertex_split_records) { 
+  for (const auto& rec : vertex_split_records) {
+    const uint32 parent_idx = rec.first;
+    const uint32 child_idx = rec.second;
 #ifdef DEBUG
-    CHECK(n_.find(rec.x()) != n_.end());
-    CHECK(n_.find(rec.y()) == n_.end());
-    CHECK(s_.find(rec.x()) != s_.end());
-    CHECK(s_.find(rec.y()) == s_.end());
+    CHECK(n_.find(parent_idx) != n_.end());
+    CHECK(n_.find(child_idx) == n_.end());
+    CHECK(s_.find(parent_idx) != s_.end());
+    CHECK(s_.find(child_idx) == s_.end());
 #endif
-    // split n_
-    const float ori_n = n_[rec.x()];
-    n_[rec.y()] = ori_n * rec.w();
-    n_[rec.x()] = ori_n * (1.0 - rec.w());
-    // split s_
-    UIntFloatMap& y_s = s_[rec.y()];
-    UIntFloatMap& x_s = s_[rec.x()];
-    y_s = x_s;
-    BOOST_FOREACH(UIntFloatPair& x_s_ele, x_s) {
-      y_s[x_s_ele.first] = x_s_ele.second * rec.w();
-      x_s_ele.second = x_s_ele.second * (1.0 - rec.w());
-    }
+    n_[child_idx] = 0;
+    s_[child_idx] = s_[parent_idx];
+    ResetUIntFloatMap(s_[child_idx]);
   }
 }
 
 void DataBatch::UpdateSuffStatStructByMerge(
-    const vector<Triple>& vertex_merge_records) { 
-  for (int idx = 0; idx < vertex_merge_records.size(); ++idx) {
-    const Triple& rec = vertex_merge_records[idx];
+    const vector<pair<uint32, uint32> >& vertex_merge_records) { 
+  for (const auto& rec : vertex_merge_records) {
+    const uint32 merging_idx = rec.first;
+    const uint32 merged_idx = rec.second;
 #ifdef DEBUG
-    CHECK(n_.find(rec.x()) != n_.end());
-    CHECK(n_.find(rec.y()) != n_.end());
-    CHECK(s_.find(rec.x()) != s_.end());
-    CHECK(s_.find(rec.y()) != s_.end());
+    CHECK(n_.find(merging_idx) != n_.end());
+    CHECK(n_.find(merged_idx) != n_.end());
+    CHECK(s_.find(merging_idx) != s_.end());
+    CHECK(s_.find(merged_idx) != s_.end());
 #endif
     // merge n_
-    n_[rec.x()] = n_[rec.x()] + n_[rec.y()];
-    n_.erase(rec.y());
+    n_[merging_idx] += n_[merged_idx];
+    n_.erase(merged_idx);
     // merge s_ 
-    UIntFloatMap& y_s = s_[rec.y()];
-    UIntFloatMap& x_s = s_[rec.x()];
-    BOOST_FOREACH(UIntFloatPair& x_s_ele, x_s) {
-#ifdef DEBUG
-      CHECK(y_s.find(x_s_ele.first) != y_s.end());
-#endif
-      x_s_ele.second += y_s[x_s_ele.first];
-    }
-    s_.erase(rec.y());
+    AccumUIntFloatMap(s_[merged_idx], 1, s_[merging_idx]);
+    s_.erase(merged_idx);
   }
 }
 

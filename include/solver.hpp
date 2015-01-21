@@ -5,6 +5,7 @@
 #include "context.hpp"
 #include "tree.hpp"
 #include "dataset.hpp"
+#include "target_dataset.hpp"
 
 namespace ditree {
 
@@ -22,6 +23,11 @@ class Solver {
   void Init(const SolverParameter& param);
   void Test();
   void Update();
+
+  void Split(const vector<uint32>& vertexes_to_split);
+  void SplitInit(Vertex* parent, Vertex* new_child, TargetDataset* target_data);
+  void RestrictedUpdate(Vertex* parent, Vertex* new_child,
+      TargetDataset* target_data);
 
   //TODO
   void Snapshot() {}
@@ -41,8 +47,8 @@ class Solver {
   int iter_;
 
   // for split
-  vector<DataBatch> split_reference_data_;
-
+  vector<TargetDataset*> split_target_data_;
+  
   petuum::Table<float> train_loss_table_;
   petuum::Table<float> test_loss_table_;
   int display_counter_;

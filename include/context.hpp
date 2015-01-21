@@ -75,6 +75,13 @@ public:
   inline static float rand() {
     return Get().random_generator_->rand();
   }
+  inline static unsigned int randInt() {
+    return Get().random_generator_->randInt();
+  }
+  inline static size_t randDiscrete(const FloatVec& distrib, 
+      size_t begin, size_t end) {
+    return Get().random_generator_->randDiscrete(distrib, begin, end);
+  }
 
   inline static petuum::Table<float>* param_table() {
     return &(Get().param_table_);
@@ -100,7 +107,10 @@ public:
   inline static uint32 row_id(const uint32 index) {
     return (index << Get().num_table_id_bits_) >> Get().num_table_id_bits_;
   }
-
+  inline static uint32 make_vertex_id(const uint32 table_id,
+      const uint32 row_id) {
+    return (table_id << Get().num_row_id_bits_) + row_id;
+  }
 private:
   // Private constructor. Store all the gflags values.
   Context();

@@ -11,6 +11,7 @@
 #include <utility>  // pair
 #include <vector>
 #include <limits>
+#include <algorithm>
 
 #include <gflags/gflags.h>
 #include <glog/logging.h>
@@ -82,6 +83,12 @@ enum LossTableCols {
   kColIdxLossTableIter = 0,
   kColIdxLossTableTime,
   kColIdxLossTableLoss,
+};
+
+const int kNumStructTableRecordCols = 2;
+enum StructTableSplitRecordCols {
+  kColIdxParentVertexIdx = 0,
+  kColIdxChildVertexIdx,
 };
 
 // Typedefs

@@ -36,7 +36,6 @@ inline void CopyUIntFloatMap(const UIntFloatMap& source,
     target[s_ele.first] = s_ele.second * coeff;
   }
 }
-
 inline void AccumUIntFloatMap(const UIntFloatMap& source, 
     const float coeff, UIntFloatMap& target) {
   BOOST_FOREACH(const UIntFloatPair& s_ele, source) {
@@ -44,6 +43,24 @@ inline void AccumUIntFloatMap(const UIntFloatMap& source,
     CHECK(target.find(s_ele.first) != target.end());
 #endif
     target[s_ele.first] += s_ele.second * coeff;
+  }
+}
+inline void CopyFloatVec(const FloatVec& source, 
+    const float coeff, FloatVec& target) {
+#ifdef DEBUG
+    CHECK_EQ(source.size(), target.size());
+#endif
+  for (int s_idx = 0; s_idx < source.size(); ++s_idx) {
+    target[s_idx] = coeff * source[s_idx];
+  }
+}
+inline void AccumFloatVec(const FloatVec& source, 
+    const float coeff, FloatVec& target) {
+#ifdef DEBUG
+    CHECK_EQ(source.size(), target.size());
+#endif
+  for (int s_idx = 0; s_idx < source.size(); ++s_idx) {
+    target[s_idx] += coeff * source[s_idx];
   }
 }
 

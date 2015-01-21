@@ -31,12 +31,11 @@ class Tree {
 
   void ConstructTableMetaInfo();
 
-  // TODO
   const vector<uint32>& SampleVertexToSplit();
-  void SplitVertex(vector<DataBatch>& split_reference_data,
-      Dataset* train_data);
 
   float ComputeELBO();
+
+  void AcceptSplitVertex(Vertex* new_vertex, const Vertex* parent_vertex_copy);
 
   // number of nodes
   inline int size() { return vertexes_.size(); }
@@ -51,10 +50,10 @@ class Tree {
   inline const map<uint32, Vertex*>& vertexes() const {
     return vertexes_;
   }
-  inline const vector<Triple>& vertex_split_records() const {
+  inline const vector<pair<uint32, uint32> >& vertex_split_records() const {
     return vertex_split_records_;
   }
-  inline const vector<Triple>& vertex_merge_records() const {
+  inline const vector<pair<uint32, uint32> >& vertex_merge_records() const {
     return vertex_merge_records_;
   }
   
@@ -64,6 +63,7 @@ class Tree {
       const uint32 child_table_idx, const int child_table_size);
   bool GetNextCandidateChildTable(const uint32 table_idx,
       IdxCntPair& child_table);
+  void AllocateChildTable(const uint32 table_idx);
 
  private:
   TreeParameter param_;
@@ -75,6 +75,8 @@ class Tree {
 
   // table_idx => { vertex idx governed by this table when spliting }
   map<uint32, set<uint32> > table_idx_governed_vertex_idxes_;
+  // table_idx => { num of vertexes in this table }
+  map<uint32, int> table_idx_vertex_size_;
   // table_idx => { parent vertex idx }
   //Note: can be inferred from parent_, do not need storing in PS
   //map<uint32, set<uint32> > table_idx_parent_vertex_idxes_;
@@ -92,9 +94,9 @@ class Tree {
   ///
   vector<uint32> vertexes_to_split_;
   // parent_idx => <child_idx, weight for child>
-  vector<Triple> vertex_split_records_;
+  vector<pair<uint32, uint32> > vertex_split_records_;
   // <vertex_idx_remained, vertex_idx_removed>
-  vector<Triple> vertex_merge_records_;
+  vector<pair<uint32, uint32> > vertex_merge_records_;
 
   int client_id_;
   int thread_id_;
