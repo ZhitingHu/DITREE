@@ -178,10 +178,8 @@ void Vertex::InitParam(const float n_init, const FloatVec& s_init) {
   }
 }
 
-void Vertex::UpdateParamTable(
-    const float data_batch_n_z_new, 
-    const float data_batch_n_z_old, 
-    const UIntFloatMap& data_batch_s_z_new,
+void Vertex::UpdateParamTable(const float data_batch_n_z_new, 
+    const float data_batch_n_z_old, const UIntFloatMap& data_batch_s_z_new,
     const UIntFloatMap& data_batch_s_z_old) {
   petuum::Table<float>* param_table = Context::param_table();
   petuum::DenseUpdateBatch<float> update_batch(
@@ -192,6 +190,48 @@ void Vertex::UpdateParamTable(
   BOOST_FOREACH(const UIntFloatPair& ele, data_batch_s_z_new) {
     update_batch[kColIdxParamTableSStart + ele.first] 
         = ele.second - data_batch_s_z_old.find(ele.first)->second;
+  }
+  param_table->DenseBatchInc(idx_, update_batch);
+}
+
+void Vertex::UpdateParamTable(const float data_batch_n_z_new, 
+    const float data_batch_n_z_old, const FloatVec& data_batch_s_z_new,
+    const FloatVec& data_batch_s_z_old) {
+  petuum::Table<float>* param_table = Context::param_table();
+  petuum::DenseUpdateBatch<float> update_batch(
+      0, kColIdxParamTableSStart + s_.size());
+  update_batch[kColIdxParamTableN] 
+      = data_batch_n_z_new - data_batch_n_z_old;
+
+  for (int sz_i = 0; sz_i < data_batch_s_z_new.size(); ++sz_i) {
+    update_batch[kColIdxParamTableSStart + sz_i] 
+        = data_batch_s_z_new[sz_i] - data_batch_s_z_old[sz_i];
+  }
+  param_table->DenseBatchInc(idx_, update_batch);
+}
+
+void Vertex::UpdateParamTable(const float n_z, const UIntFloatMap& s_z,
+    const float coeff) {
+  petuum::Table<float>* param_table = Context::param_table();
+  petuum::DenseUpdateBatch<float> update_batch(
+      0, kColIdxParamTableSStart + s_.size());
+  update_batch[kColIdxParamTableN] = coeff * n_z;
+
+  BOOST_FOREACH(const UIntFloatPair& ele, s_z) {
+    update_batch[kColIdxParamTableSStart + ele.first] = coeff * ele.second;
+  }
+  param_table->DenseBatchInc(idx_, update_batch);
+}
+
+void Vertex::UpdateParamTable(const float n_z, const FloatVec& s_z,
+    const float coeff) {
+  petuum::Table<float>* param_table = Context::param_table();
+  petuum::DenseUpdateBatch<float> update_batch(
+      0, kColIdxParamTableSStart + s_.size());
+  update_batch[kColIdxParamTableN] = coeff * n_z;
+
+  for (int sz_i = 0; sz_i < s_z.size(); ++sz_i) {
+    update_batch[kColIdxParamTableSStart + sz_i] = coeff * s_z[sz_i];
   }
   param_table->DenseBatchInc(idx_, update_batch);
 }

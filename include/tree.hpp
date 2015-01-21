@@ -31,11 +31,12 @@ class Tree {
 
   void ConstructTableMetaInfo();
 
-  const vector<uint32>& SampleVertexToSplit();
+  const void SampleVertexToSplit(vector<uint32>& vertex_to_split);
 
   float ComputeELBO();
 
-  void AcceptSplitVertex(Vertex* new_vertex, const Vertex* parent_vertex_copy);
+  // Return idx of the new_vertex
+  uint32 AcceptSplitVertex(Vertex* new_vertex, const Vertex* parent_vertex_copy);
 
   // number of nodes
   inline int size() { return vertexes_.size(); }
@@ -91,8 +92,6 @@ class Tree {
   int max_table_num_;
   uint32 max_table_idx_;
 
-  ///
-  vector<uint32> vertexes_to_split_;
   // parent_idx => <child_idx, weight for child>
   vector<pair<uint32, uint32> > vertex_split_records_;
   // <vertex_idx_remained, vertex_idx_removed>

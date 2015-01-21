@@ -24,11 +24,16 @@ class Solver {
   void Test();
   void Update();
 
-  void Split(const vector<uint32>& vertexes_to_split);
+  // Split move
+  void ClearLastSplit();
+  void SampleVertexToSplit();
+  void CollectTargetData(const UIntFloatMap& log_weights,
+      const float log_weight_sum, const Datum* datum);
+  void Split();
   void SplitInit(Vertex* parent, Vertex* new_child, TargetDataset* target_data);
   void RestrictedUpdate(Vertex* parent, Vertex* new_child,
       TargetDataset* target_data);
-
+  
   //TODO
   void Snapshot() {}
   void Restore(const char* resume_file) {}
@@ -48,6 +53,10 @@ class Solver {
   int iter_;
 
   // for split
+  vector<uint32> vertexes_to_split_;
+  bool collect_target_data_;
+  float log_target_data_threshold_;
+  int max_target_data_size_;
   vector<TargetDataset*> split_target_data_;
   
   petuum::Table<float> train_loss_table_;

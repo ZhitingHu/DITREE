@@ -8,13 +8,10 @@ namespace ditree {
 
 DITreeEngine::DITreeEngine(const SolverParameter& param) {
   solver_param_ = param;
-  Init();
 }
 
 void DITreeEngine::Init() {
   LOG(INFO) << "Init PS environment";
-  //Context::set_phase(ditree::Context::Phase::kInit);
-  Context::set_phase(ditree::Context::Phase::kVIAfterSplit);
   petuum::TableGroupConfig table_group_config;
   table_group_config.num_comm_channels_per_client
       = Context::get_int32("num_comm_channels_per_client");
@@ -62,8 +59,8 @@ void DITreeEngine::CreateTables() {
   bool oplog_dense_serialized = Context::get_bool("oplog_dense_serialized");
   int max_num_vertexes = Context::get_int32("max_num_vertexes");
   int max_num_tables = (1 << Context::get_int32("num_table_id_bits"));
-  int tot_num_threads
-      = Context::get_int32("num_clients") * Context::get_int32("num_threads");
+  int num_threads = Context::get_int32("num_threads");
+  int tot_num_threads = Context::get_int32("num_clients") * num_threads;
   int max_num_split_per_table = Context::get_int32("max_split_per_table");
   // common table config
   petuum::ClientTableConfig table_config;
@@ -108,8 +105,12 @@ void DITreeEngine::CreateTables() {
   petuum::PSTableGroup::CreateTable(kParamTableMetaTableID, table_config);
   LOG(INFO) << "Created param table meta table " << kParamTableMetaTableID;
   // train loss table
+  const int max_iter_per_epoch 
+      = (train_data_.batch_num() + num_threads - 1) / num_threads
+      + param_table_staleness + 1; 
   const int num_rows_train_loss_table
-      = solver_param_.max_iter() / solver_param_.display() + 1;
+      = solver_param_.max_epoch() * max_iter_per_epoch 
+      / solver_param_.display() + 1;
   CHECK_GT(num_rows_train_loss_table, 0);
   table_config.table_info.row_type = ditree::kFloatDenseRowDtypeID;
   table_config.table_info.table_staleness = loss_table_staleness;
@@ -121,7 +122,8 @@ void DITreeEngine::CreateTables() {
   LOG(INFO) << "Created train loss table " << kTrainLossTableID;
   // test loss table
   const int num_rows_test_loss_table
-      = solver_param_.max_iter() / solver_param_.test_interval() + 1;
+      = solver_param_.max_epoch() * max_iter_per_epoch 
+      / solver_param_.test_interval() + 1;
   CHECK_GT(num_rows_test_loss_table, 0);
   table_config.table_info.row_capacity = kNumLossTableCols;
   table_config.process_cache_capacity = num_rows_test_loss_table;
@@ -135,7 +137,6 @@ void DITreeEngine::CreateTables() {
 }
 
 void DITreeEngine::ReadData() {
-  ditree::Context& context = ditree::Context::Get();
   const string& data_file = Context::get_string("data");
   train_data_.Init(data_file); 
 }

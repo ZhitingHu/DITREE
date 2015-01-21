@@ -11,12 +11,12 @@ namespace ditree {
 class TargetDataset {
  public:
   explicit TargetDataset(const uint32 target_vertex_idx) 
-      : target_vertex_idx_(target_vertex_idx) {
+      : target_vertex_idx_(target_vertex_idx), success_(false) {
     n_parent_ = 0;
     n_child_ = 0;
   }
 
-  inline void AddDatum(Datum* datum, const UIntFloatMap& log_weights, 
+  inline void AddDatum(const Datum* datum, const UIntFloatMap& log_weights, 
       const float log_weights_sum) {
     data_.push_back(datum);
     BOOST_FOREACH(const UIntFloatPair& lw_ele, log_weights) {
@@ -29,15 +29,23 @@ class TargetDataset {
 #endif
   }
  
+  inline bool success() const { return success_; }
+  inline void set_success() { success_ = true; }
+
+  inline uint32 target_vertex_idx() { return target_vertex_idx_; }
+  inline uint32 child_vertex_idx() { return child_vertex_idx_; }
+  inline void set_child_vertex_idx(const uint32 child_vertex_idx) {
+    child_vertex_idx_ = child_vertex_idx;
+  } 
   inline const UIntFloatMap& origin_n() { return origin_n_; }
-  
+ 
   inline const Datum* datum(const int idx) {
 #ifdef DEBUG
     CHECK_LT(idx, data_.size());
 #endif
     return data_[idx];
   }
-  inline const vector<Datum*>& data() { return data_; }
+  inline const vector<const Datum*>& data() { return data_; }
   inline int size() const { return data_.size(); }
 
   inline float& n_parent() { return n_parent_; }
@@ -48,9 +56,11 @@ class TargetDataset {
  private:
 
  private:
-  vector<Datum*> data_;
+  vector<const Datum*> data_;
  
-  uint32 target_vertex_idx_;  
+  uint32 target_vertex_idx_;
+  uint32 child_vertex_idx_;
+  bool success_;
   
   // Used in restricted update
   float n_parent_;

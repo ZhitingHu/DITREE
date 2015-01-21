@@ -266,9 +266,9 @@ void Tree::AllocateChildTable(const uint32 vertex_idx) {
 }
 
 //TODO: add more random factors
-const vector<uint32>& Tree::SampleVertexToSplit() {
+const void Tree::SampleVertexToSplit(vector<uint32>& vertexes_to_split) {
   vertex_split_records_.clear();
-  vertexes_to_split_.clear();
+  vertexes_to_split.clear();
   // to prevent duplication
   set<uint32> vertexes_set;
   const int max_num_split = Context::get_int32("max_split_per_table");
@@ -299,15 +299,14 @@ const vector<uint32>& Tree::SampleVertexToSplit() {
           Context::randDiscrete(vertex_weights, 0, vertex_idxes.size())];
       if (vertexes_set.find(cand_v_idx) == vertexes_set.end()) {
         vertexes_set.insert(cand_v_idx);
-        vertexes_to_split_.push_back(cand_v_idx);
+        vertexes_to_split.push_back(cand_v_idx);
         ++num_split;
       }
     }
   } // end of tables
-  return vertexes_to_split_;
 }
 
-void Tree::AcceptSplitVertex(Vertex* new_vertex,
+uint32 Tree::AcceptSplitVertex(Vertex* new_vertex,
     const Vertex* parent_vertex_copy) {
   /// Allocate vertex idx
   uint32 child_table_idx = parent_vertex_copy->child_table_idx();
@@ -326,30 +325,15 @@ void Tree::AcceptSplitVertex(Vertex* new_vertex,
   if (new_vertex->depth() < Context::get_int32("max_depth")) {
     AllocateChildTable(child_idx);
   }
-  ///
   /// Update param table
-  // child's param
-  petuum::Table<float>* param_table = Context::param_table();
-  const FloatVec& new_vertex_s = new_vertex->s();
-  petuum::DenseUpdateBatch<float> update_batch(
-      0, kColIdxParamTableSStart + new_vertex_s.size());
-  update_batch[kColIdxParamTableN] = new_vertex->n();
-  for (int s_idx = 0; s_idx < new_vertex_s.size(); ++s_idx) {
-    update_batch[kColIdxParamTableSStart + s_idx] = new_vertex_s[s_idx];
-  }
-  param_table->DenseBatchInc(child_idx, update_batch);
-  // parent's param
-  update_batch[kColIdxParamTableN] = parent_vertex->n() - parent_vertex->n();
-  const FloatVec& parent_s = parent_vertex->s(); 
-  const FloatVec& parent_copy_s = parent_vertex_copy->s(); 
-  for (int s_idx = 0; s_idx < parent_s.size(); ++s_idx) {
-    update_batch[kColIdxParamTableSStart + s_idx] 
-        = parent_copy_s[s_idx] - parent_s[s_idx];
-  }
-  param_table->DenseBatchInc(parent_vertex->idx(), update_batch);
-
+  new_vertex->UpdateParamTable(new_vertex->n(), new_vertex->s(), 1.0);
+  parent_vertex->ReadParamTable();
+  parent_vertex->UpdateParamTable(parent_vertex_copy->n(), parent_vertex->n(),
+      parent_vertex_copy->s(), parent_vertex->s());
   // 
   vertex_split_records_.push_back(make_pair(parent_vertex->idx(), child_idx));
+
+  return child_idx;
 }
 
 float Tree::ComputeELBO() {

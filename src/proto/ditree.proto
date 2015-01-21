@@ -60,14 +60,14 @@ message SolverParameter {
   // the number of iterations between displaying info. If display = 0, no info
   // will be displayed.
   optional int32 display = 5;
-  optional int32 max_epoches = 6;
+  optional int32 max_epoch = 6;
   optional int32 snapshot = 7 [default = 0]; // The snapshot interval
   optional bool snapshot_after_train = 8 [default = true]; 
   optional string snapshot_prefix = 9; // The prefix for the snapshot.
   // Split merge moves
-  optional int32 split_sample_iter_offset = 10; // When to start sample
-  optional float split_target_datum_threshold = 11;
-  optional int32 split_target_data_size = 12;
+  optional int32 split_sample_start_iter = 10; // When to start sample
+  optional float split_target_data_threshold = 11;
+  optional int32 split_max_target_data_size = 12;
 }
 
 // A message that stores the solver snapshots

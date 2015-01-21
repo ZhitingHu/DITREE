@@ -83,6 +83,7 @@ int main(int argc, char** argv) {
   ditree::ReadProtoFromTextFileOrDie(FLAGS_solver, &solver_param);
   ditree::DITreeEngine* ditree_engine = new ditree::DITreeEngine(solver_param);
   ditree_engine->ReadData();
+  ditree_engine->Init();
 
   LOG(INFO) << "Starting NN with " << FLAGS_num_app_threads << " threads "
       << "on client " << FLAGS_client_id;

@@ -13,7 +13,7 @@ class DataBatch {
   explicit DataBatch(const int data_idx_begin, const int size)
   : data_idx_begin_(data_idx_begin), size_(size) { }
  
-  void UpdateSuffStatStruct(const Tree* tree);
+  void UpdateSuffStatStruct(const Tree* tree, const Context::Phase phase);
   void InitSuffStatStruct(const Tree* tree, const vector<Datum*>& data);
 
   inline UIntFloatMap& n() { return n_; }

@@ -25,18 +25,14 @@ Context::Context() {
 
 void Context::Init() {
   num_app_threads_ = get_int32("num_app_threads");
-  //phases_ = new Phase[num_app_threads_];
-  //for (int t_idx = 0; t_idx < num_app_threads_; ++t_idx) {
-  //  set_phase(Caffe::VI_AFTER_SPLIT, t_idx);
-  //}
-  //phase_ = kInit;
-  phase_ = kVIAfterSplit;
+  phases_ = new Phase[num_app_threads_];
+  for (int t_idx = 0; t_idx < num_app_threads_; ++t_idx) {
+    set_phase(Context::Phase::kVIAfterSplit, t_idx);
+  }
+
   num_table_id_bits_ = get_int32("num_table_id_bits");
   num_row_id_bits_ = kNumIntBits - num_table_id_bits_;
-  //kappa_0_ = get_double("kappa_0");
-  //kappa_1_ = get_double("kappa_1");
-  //kappa_2_ = get_double("kappa_2");
-  //beta_ = get_double("beta");
+
   vocab_size_ = get_int32("vocab_size");
 
   int rand_seed = get_int32("random_seed");

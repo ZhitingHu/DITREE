@@ -22,16 +22,17 @@ Solver::Solver(const string& param_file, const int thread_id,
 }
 
 void Solver::Init(const SolverParameter& param) {
-  ditree::Context& context = ditree::Context::Get();
-  client_id_ = context.get_int32("client_id");
+  client_id_ = Context::get_int32("client_id");
   param_ = param;
-  
+  collect_target_data_ = false;
+  log_target_data_threshold_ = log(param_.split_target_data_threshold());
+  max_target_data_size_ = param_.split_max_target_data_size();
+
   // Initialize tree
-  const string& model = context.get_string("model"); 
+  const string& model = Context::get_string("model"); 
   tree_ = new Tree(model, thread_id_);
   root_ = tree_->root();
   tree_->InitParam();
-
   train_loss_table_ 
       = petuum::PSTableGroup::GetTableOrDie<float>(kTrainLossTableID);
   test_loss_table_ 
@@ -58,9 +59,8 @@ void Solver::Solve(const char* resume_file) {
 
   // Remember the initial iter_ value; will be non-zero if we loaded from a
   // resume_file above.
-  const int start_epoch = epoch_;
-  const int start_iter = iter_;
-  const int num_iter_per_epoch_ = train_data_->batch_num();
+  //const int start_epoch = epoch_;
+  int start_iter = iter_;
 
   display_counter_ = 0;
   test_counter_ = 0;
@@ -80,10 +80,10 @@ void Solver::Solve(const char* resume_file) {
   }
 
   //
-  for (; epoch_ < param_max_epoch(); ++epoch_) {
-    // VI
-    for (iter = start_iter; iter_ < num_iter_per_epoch; ++iter_) {
-      LOG(INFO) << "start iter " << iter_;
+  for (; epoch_ < param_.max_epoch(); ++epoch_) {
+    train_data_->Restart();
+    /// VI
+    while (!train_data_->epoch_end()) {
       // Save a snapshot if needed.
       if (param_.snapshot() && iter_ > start_iter &&
           iter_ % param_.snapshot() == 0) {
@@ -95,8 +95,15 @@ void Solver::Solve(const char* resume_file) {
           && (iter_ > 0 || param_.test_initialization())) {
         Test();
       }
+      
+      // Sample target vertexes to split  
+      if (iter_ == param_.split_sample_start_iter()) {
+        ClearLastSplit();
+        SampleVertexToSplit();
+        collect_target_data_ = true;
+      }
 
-      // main VI
+      // Main VI
       Update();
       
       petuum::PSTableGroup::Clock();
@@ -105,11 +112,18 @@ void Solver::Solve(const char* resume_file) {
       if (param_.display() && iter_ % param_.display() == 0) {
         //TODO: display
       }
-    }
-    // Split
-    // TODO
 
+      ++iter_;
+    }
+
+    /// Split
+    petuum::PSTableGroup::GlobalBarrier();
+    Split();
+    petuum::PSTableGroup::GlobalBarrier();
+
+    /// 
     start_iter = 0;
+    iter_ = 0;
   } // end of epoch
 
   if (param_.snapshot_after_train()) { Snapshot(); }
@@ -120,11 +134,16 @@ void Solver::Solve(const char* resume_file) {
 
 void Solver::Update() {
   DataBatch* data_batch = train_data_->GetNextDataBatch();
-  //if (Context::phase() == Context::Phase::kInit) {
+  // End of epoch
+  if (data_batch == NULL) {
+    return;
+  }
+
+  //if (Context::phase() == Context::Phase::kInit)
   if (data_batch->n().size() == 0) {
     data_batch->InitSuffStatStruct(tree_, train_data_->data());
   } else {
-    data_batch->UpdateSuffStatStruct(tree_);
+    data_batch->UpdateSuffStatStruct(tree_, Context::phase(thread_id_));
   }
  
   // sum_{n,z} lambda_nz log (lambda_nz) 
@@ -152,9 +171,6 @@ void Solver::Update() {
   // likelihood
   LOG(INFO) << "databatch " << data_batch->data_idx_begin() << " " << data_batch->size();
 
-  //TODO
-  UIntFloatMap data_batch_words(s_new[0]);
-  
   int d_idx = data_batch->data_idx_begin();
   int data_idx_end = d_idx + data_batch->size();
   for (; d_idx < data_idx_end; ++d_idx) {
@@ -221,6 +237,10 @@ void Solver::Update() {
     }
     //CHECK_GE(n_prob, 1.0 - kFloatEpsilon) << n_prob;    
     //CHECK_LE(n_prob, 1.0 + kFloatEpsilon) << n_prob;    
+    
+    if (collect_target_data_) {
+      CollectTargetData(log_weights, log_weight_sum, datum);
+    }
   } // end of datum
 
   //TODO
@@ -289,12 +309,54 @@ void Solver::Test() {
   
 }
 
-void Solver::Split(const vector<uint32>& vertexes_to_split) {
-  for (int s_idx = 0; s_idx < vertexes_to_split.size(); ++s_idx) {
-    uint32 v_idx = vertexes_to_split[s_idx];
+void Solver::ClearLastSplit() {
+  for (auto target_data : split_target_data_) {
+    if (!target_data->success()) {
+      continue;
+    }
+    uint32 parent_vertex_idx = target_data->target_vertex_idx();
+    uint32 child_vertex_idx = target_data->child_vertex_idx();
+    tree_->vertex(parent_vertex_idx)->UpdateParamTable(
+        target_data->n_parent(), target_data->s_parent(), -1.0);
+    tree_->vertex(child_vertex_idx)->UpdateParamTable(
+        target_data->n_child(), target_data->s_child(), -1.0);
+  }
+}
+
+void Solver::SampleVertexToSplit() {
+  vertexes_to_split_.clear();
+  tree_->SampleVertexToSplit(vertexes_to_split_);
+
+  vector<TargetDataset*>().swap(split_target_data_);
+  for (int i = 0; i < vertexes_to_split_.size(); ++i) {
+    split_target_data_.push_back(new TargetDataset(vertexes_to_split_[i]));
+  }
+}
+
+void Solver::CollectTargetData(const UIntFloatMap& log_weights,
+    const float log_weight_sum, const Datum* datum) {
+  bool complete = true;
+  for (int v_idx_i = 0; v_idx_i < vertexes_to_split_.size(); ++v_idx_i) {
+    if (split_target_data_[v_idx_i]->size() >= max_target_data_size_) {
+      continue;
+    }
+    complete = false;
+    uint32 v_idx = vertexes_to_split_[v_idx_i];
+    if ((log_weights.find(v_idx)->second - log_weight_sum) >
+        log_target_data_threshold_) {
+      split_target_data_[v_idx_i]->AddDatum(datum, log_weights, log_weight_sum);
+    }
+  } // end of target vertexes
+  collect_target_data_ = (complete ? false : true);
+}
+
+void Solver::Split() {
+  Context::set_phase(Context::Phase::kSplit, thread_id_); 
+  for (int i = 0; i < vertexes_to_split_.size(); ++i) {
+    uint32 v_idx = vertexes_to_split_[i];
     Vertex parent_vertex_copy = (*tree_->vertex(v_idx));
     Vertex* child_vertex = new Vertex();
-    TargetDataset* target_data = split_target_data_[v_idx];
+    TargetDataset* target_data = split_target_data_[i];
     // Initialize
     SplitInit(&parent_vertex_copy, child_vertex, target_data);
     // TODO
@@ -304,8 +366,12 @@ void Solver::Split(const vector<uint32>& vertexes_to_split) {
     // TODO: validate
     
     // Accept the new child vertex
-    tree_->AcceptSplitVertex(child_vertex, &parent_vertex_copy);
+    uint32 child_idx 
+        = tree_->AcceptSplitVertex(child_vertex, &parent_vertex_copy);
+    target_data->set_child_vertex_idx(child_idx);
+    target_data->set_success();
   }
+  Context::set_phase(Context::Phase::kVIAfterSplit, thread_id_); 
 }
 
 void Solver::RestrictedUpdate(Vertex* parent, Vertex* new_child,
@@ -319,8 +385,8 @@ void Solver::RestrictedUpdate(Vertex* parent, Vertex* new_child,
   const UIntFloatMap s_parent_old(target_data->s_parent());
   UIntFloatMap& s_parent_new = target_data->s_parent();
 
-  const float n_child_old = target_data->n_parent();
-  float& n_child_new = target_data->n_parent();
+  const float n_child_old = target_data->n_child();
+  float& n_child_new = target_data->n_child();
   const UIntFloatMap s_child_old(target_data->s_child());
   UIntFloatMap& s_child_new = target_data->s_child();
 

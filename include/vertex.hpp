@@ -18,11 +18,20 @@ class Vertex {
   void RecursComputeVarZPrior();
   void ComputeVarZPrior();
 
-  void InitParam(const float n_init, const FloatVec& s_init);
-  void UpdateParamTable(const float data_batch_n_z_new,
-    const float data_batch_n_z_old, const UIntFloatMap& data_batch_s_z_new,
-    const UIntFloatMap& data_batch_s_z_old);
   void ReadParamTable();
+  void InitParam(const float n_init, const FloatVec& s_init);
+  
+  // Overload update functions
+  void UpdateParamTable(const float data_batch_n_z_new,
+      const float data_batch_n_z_old, const UIntFloatMap& data_batch_s_z_new,
+      const UIntFloatMap& data_batch_s_z_old);
+  void UpdateParamTable(const float data_batch_n_z_new,
+      const float data_batch_n_z_old, const FloatVec& data_batch_s_z_new,
+      const FloatVec& data_batch_s_z_old);
+  void UpdateParamTable(const float n_z, const UIntFloatMap& s_z,
+      const float coeff);
+  void UpdateParamTable(const float n_z, const FloatVec& s_z,
+      const float coeff);
 
   float ComputeELBO();
 

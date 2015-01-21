@@ -87,13 +87,22 @@ DataBatch* Dataset::GetNextDataBatch() {
   LOG(INFO) << "Get next batch iter_=" << iter_ 
     << " " << data_batch_queue_[iter_] << " size " << data_batches_.size();
   boost::mutex::scoped_lock lock(data_access_mutex);
-  //DataBatch* next_batch = data_batches_[iter_++];
-  DataBatch* next_batch = data_batches_[data_batch_queue_[iter_++]];
-  if (iter_ >= data_batches_.size()) {
+  if (iter_ < data_batches_.size()) {
+    DataBatch* next_batch = data_batches_[data_batch_queue_[iter_]];
+    ++iter_;
+    return next_batch;
+  } else {
+    return NULL;
+  }
+}
+
+void Dataset::Restart() {
+  boost::mutex::scoped_lock lock(data_access_mutex);
+  if (iter_ > 0) {
+    // Only one thread on each client will execute this code
     iter_ = 0;
     std::random_shuffle(data_batch_queue_.begin(), data_batch_queue_.end());
   }
-  return next_batch;
 }
 
 } // namespace ditree

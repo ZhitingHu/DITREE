@@ -13,6 +13,7 @@ class Dataset {
   explicit Dataset() {};
   
   DataBatch* GetNextDataBatch();
+  void Restart(); 
  
   const inline Datum* datum(int idx) {
 #ifdef DEBUG
@@ -21,6 +22,7 @@ class Dataset {
     return data_[idx];
   }
 
+  inline bool epoch_end() { return (iter_ >= data_batches_.size()); }
   inline int size() { return data_.size(); }
   inline int batch_num() { return data_batches_.size(); }
   inline vector<Datum*>& data() { return data_; }

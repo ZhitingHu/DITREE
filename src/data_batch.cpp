@@ -5,16 +5,17 @@
 
 namespace ditree {
 
-void DataBatch::UpdateSuffStatStruct(const Tree* tree) {
-  if (Context::phase() == Context::Phase::kVIAfterSplit) {
+void DataBatch::UpdateSuffStatStruct(const Tree* tree,
+    const Context::Phase phase) {
+  if (phase == Context::Phase::kVIAfterSplit) {
     UpdateSuffStatStructBySplit(tree->vertex_split_records());
     UpdateSuffStatStructByMerge(tree->vertex_merge_records());
-  } else if (Context::phase() == Context::Phase::kVIAfterMerge) {
+  } else if (phase == Context::Phase::kVIAfterMerge) {
     UpdateSuffStatStructByMerge(tree->vertex_merge_records());
     UpdateSuffStatStructBySplit(tree->vertex_split_records());
   } else {
     LOG(FATAL) << "Phase must be kVIAfterSplit or kVIAfterMerge != " 
-        << Context::phase();
+        << phase;
   }
 }
 
