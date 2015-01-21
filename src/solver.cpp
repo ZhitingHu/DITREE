@@ -43,6 +43,7 @@ void Solver::Solve(const char* resume_file) {
     LOG(INFO) << "Solving DITree";
   }
 
+  epoch_ = 0;
   iter_ = 0;
   if (resume_file) {
     if (client_id_ == 0 && thread_id_ == 0) {
@@ -57,7 +58,9 @@ void Solver::Solve(const char* resume_file) {
 
   // Remember the initial iter_ value; will be non-zero if we loaded from a
   // resume_file above.
+  const int start_epoch = epoch_;
   const int start_iter = iter_;
+  const int num_iter_per_epoch_ = train_data_->batch_num();
 
   display_counter_ = 0;
   test_counter_ = 0;
@@ -77,32 +80,37 @@ void Solver::Solve(const char* resume_file) {
   }
 
   //
-  for (; iter_ < param_.max_iter(); ++iter_) {
-    LOG(INFO) << "start iter " << iter_;
-    // Save a snapshot if needed.
-    if (param_.snapshot() && iter_ > start_iter &&
-        iter_ % param_.snapshot() == 0) {
-      Snapshot();
-    }
-    
-    // Test if needed.
-    if (param_.test_interval() && iter_ % param_.test_interval() == 0
-        && (iter_ > 0 || param_.test_initialization())) {
-      Test();
-    }
+  for (; epoch_ < param_max_epoch(); ++epoch_) {
+    // VI
+    for (iter = start_iter; iter_ < num_iter_per_epoch; ++iter_) {
+      LOG(INFO) << "start iter " << iter_;
+      // Save a snapshot if needed.
+      if (param_.snapshot() && iter_ > start_iter &&
+          iter_ % param_.snapshot() == 0) {
+        Snapshot();
+      }
+      
+      // Test if needed.
+      if (param_.test_interval() && iter_ % param_.test_interval() == 0
+          && (iter_ > 0 || param_.test_initialization())) {
+        Test();
+      }
 
-    // main VI
-    Update();
-    LOG(INFO) << "update done. ";
-    
-    petuum::PSTableGroup::Clock();
+      // main VI
+      Update();
+      
+      petuum::PSTableGroup::Clock();
  
-
-    // Display
-    if (param_.display() && iter_ % param_.display() == 0) {
-      //TODO: display
+      // Display
+      if (param_.display() && iter_ % param_.display() == 0) {
+        //TODO: display
+      }
     }
-  } // end of iter
+    // Split
+    // TODO
+
+    start_iter = 0;
+  } // end of epoch
 
   if (param_.snapshot_after_train()) { Snapshot(); }
   if (param_.test_interval() && iter_ % param_.test_interval() == 0) {

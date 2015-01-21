@@ -44,6 +44,7 @@ class Solver {
   Vertex* root_;
 
   Dataset* train_data_;
+  int epoch_;
   int iter_;
 
   // for split

@@ -22,6 +22,7 @@ class Dataset {
   }
 
   inline int size() { return data_.size(); }
+  inline int batch_num() { return data_batches_.size(); }
   inline vector<Datum*>& data() { return data_; }
 
   void Init(const string& filename);
