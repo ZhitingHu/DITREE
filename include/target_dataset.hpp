@@ -21,8 +21,10 @@ class TargetDataset {
     data_.push_back(datum);
     BOOST_FOREACH(const UIntFloatPair& lw_ele, log_weights) {
       origin_n_[lw_ele.first] += exp(lw_ele.second - log_weights_sum);
-      s_parent_[lw_ele.first] = 0;
-      s_child_[lw_ele.first] = 0;
+    }
+    BOOST_FOREACH(const UIntFloatPair& d_ele, datum->data()) {
+      s_parent_[d_ele.first] = 0;
+      s_child_[d_ele.first] = 0;
     }
 #ifdef DEBUG
     CHECK_EQ(origin_n_.size(), log_weights.size());

@@ -19,8 +19,6 @@ Context::Context() {
     google::CommandLineFlagInfo& flag = flags[i];
     ctx_[flag.name] = flag.is_default ? flag.default_value : flag.current_value;
   }
-
-  Init();
 }
 
 void Context::Init() {

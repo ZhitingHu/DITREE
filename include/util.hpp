@@ -22,6 +22,15 @@ class Triple {
   float w_;
 };
 
+inline void PrintUIntFloatMap(const UIntFloatMap& v) {
+  ostringstream oss;
+  BOOST_FOREACH(const UIntFloatPair& v_ele, v) {
+    oss << v_ele.first << ":" << v_ele.second << " ";
+  }
+  oss << "\n";
+  LOG(INFO) << oss.str();
+}
+
 inline void ResetUIntFloatMap(UIntFloatMap& target) {
   BOOST_FOREACH(UIntFloatPair& t_ele, target) {
     t_ele.second = 0;

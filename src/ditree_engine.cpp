@@ -59,7 +59,7 @@ void DITreeEngine::CreateTables() {
   bool oplog_dense_serialized = Context::get_bool("oplog_dense_serialized");
   int max_num_vertexes = Context::get_int32("max_num_vertexes");
   int max_num_tables = (1 << Context::get_int32("num_table_id_bits"));
-  int num_threads = Context::get_int32("num_threads");
+  int num_threads = Context::get_int32("num_app_threads");
   int tot_num_threads = Context::get_int32("num_clients") * num_threads;
   int max_num_split_per_table = Context::get_int32("max_split_per_table");
   // common table config
@@ -85,9 +85,12 @@ void DITreeEngine::CreateTables() {
   // struct table
   int struct_row_length
       = (max_num_tables + tot_num_threads - 1) / tot_num_threads 
-      * max_num_split_per_table * kNumStructTableRecordCols;
+      * max_num_split_per_table * kNumStructTableRecordCols + 1;
+    // the 1st row has length of tot_num_threads
+  struct_row_length = max(struct_row_length, tot_num_threads);
+  Context::set_struct_table_row_length(struct_row_length);
   LOG(INFO) << "Struct table row capacity " << struct_row_length;
-  table_config.table_info.row_type = ditree::kFloatDenseRowDtypeID;
+  table_config.table_info.row_type = ditree::kIntDenseRowDtypeID;
   table_config.table_info.table_staleness = 0; 
   table_config.table_info.row_capacity = struct_row_length;
   table_config.process_cache_capacity = tot_num_threads;
@@ -138,6 +141,7 @@ void DITreeEngine::CreateTables() {
 
 void DITreeEngine::ReadData() {
   const string& data_file = Context::get_string("data");
+  LOG(INFO) << "Reading data " << data_file;
   train_data_.Init(data_file); 
 }
 

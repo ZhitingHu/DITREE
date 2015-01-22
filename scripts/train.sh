@@ -32,8 +32,8 @@ num_comm_channels_per_client=1
 max_depth=10
 max_num_children_per_vertex=20
 max_num_vertexes=10000
-max_num_parents_per_table=5
-num_layer_per_table=2
+max_size_per_table=10
+max_split_per_table=1
 num_table_id_bits=8
 
 num_history=1
@@ -100,9 +100,9 @@ for ip in $unique_host_list; do
       --consistency_model "SSPPush" \
       --max_depth ${max_depth} \
       --max_num_children_per_vertex ${max_num_children_per_vertex} \
-      --max_num_vertexes ${max_num_vertexes} \
-      --max_num_parents_per_table $max_num_parents_per_table \
-      --num_layer_per_table $num_layer_per_table \
+      --max_num_vertexes ${max_num_vertexes} \      
+      --max_size_per_table ${max_size_per_table} \
+      --max_split_per_table ${max_split_per_table} \ 
       --num_table_id_bits $num_table_id_bits \
       --history $num_history \
       --data $data \

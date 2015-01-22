@@ -1,5 +1,5 @@
-alpha: 0.5
-gamma: 0.5
+alpha: 5
+gamma: 5
 beta: 50
 kappa_0: 200
 kappa_1: 10

@@ -27,7 +27,9 @@ class Tree {
 
   void ReadParamTable();
 
-  void SyncStructure();
+  void UpdateTreeStructAfterSplit();
+  void UpdateStructTableAfterSplit();
+  void ClearSplitRecords();
 
   void ConstructTableMetaInfo();
 
@@ -99,19 +101,16 @@ class Tree {
 
   int client_id_;
   int thread_id_;
+  int global_worker_id_;
+  int tot_num_threads_;
 
-  //struct SortByFirstOfPair {
-  //  bool operator() (const IdxCntPair& lhs, const IdxCntPair& rhs) {
-  //    return (lhs.first < rhs.first)
-  //        || (lhs.first == rhs.first && lhs.second < rhs.second);
-  //  }
-  //};
-  //struct SortBySecondOfPair {
-  //  bool operator() (const IdxCntPair& lhs, const IdxCntPair& rhs) {
-  //    return (lhs.second < rhs.second) 
-  //        || (lhs.second == rhs.second && lhs.first < rhs.first);
-  //  }
-  //};
+  struct SortBySecondOfPair {
+    bool operator() (const pair<uint32, uint32>& lhs,
+        const pair<uint32, uint32>& rhs) {
+      return (lhs.second < rhs.second) 
+          || (lhs.second == rhs.second && lhs.first < rhs.first);
+    }
+  };
 };
 
 } // namespace ditree

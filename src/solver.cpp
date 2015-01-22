@@ -81,6 +81,7 @@ void Solver::Solve(const char* resume_file) {
 
   //
   for (; epoch_ < param_.max_epoch(); ++epoch_) {
+    LOG(INFO) << "=================================================== epoch " << epoch_;
     train_data_->Restart();
     /// VI
     while (!train_data_->epoch_end()) {
@@ -99,7 +100,9 @@ void Solver::Solve(const char* resume_file) {
       // Sample target vertexes to split  
       if (iter_ == param_.split_sample_start_iter()) {
         ClearLastSplit();
+        LOG(INFO) << "SampleVertexToSplit. ";
         SampleVertexToSplit();
+        LOG(INFO) << "SampleVertexToSplit Done.";
         collect_target_data_ = true;
       }
 
@@ -116,10 +119,30 @@ void Solver::Solve(const char* resume_file) {
       ++iter_;
     }
 
-    /// Split
-    petuum::PSTableGroup::GlobalBarrier();
-    Split();
-    petuum::PSTableGroup::GlobalBarrier();
+    if (epoch_ < param_.max_epoch() - 1) {
+      /// Split
+      petuum::PSTableGroup::GlobalBarrier();
+      Context::set_phase(Context::Phase::kSplit, thread_id_);
+
+      LOG(INFO) << "!!!!!!! Split";
+      Split();
+      LOG(INFO) << "!!!!!!! Split Done.";
+
+      tree_->UpdateStructTableAfterSplit();
+      LOG(INFO) << "!!!!!!! Split Update STable Done.";
+
+      petuum::PSTableGroup::GlobalBarrier();
+      tree_->UpdateTreeStructAfterSplit();
+      LOG(INFO) << "!!!!!!! Split Update Local struc Done.";
+
+      tree_->ReadParamTable();
+      LOG(INFO) << "!!!!!!! read param table done. ";
+      root_->RecursConstructParam();
+      LOG(INFO) << "!!!!!!! recurs param done. ";
+
+      Context::set_phase(Context::Phase::kVIAfterSplit, thread_id_); 
+      petuum::PSTableGroup::GlobalBarrier();
+    }
 
     /// 
     start_iter = 0;
@@ -163,6 +186,9 @@ void Solver::Update() {
 #endif
   // z prior
   root_->RecursComputeVarZPrior();
+  for (const auto v : tree_->vertexes()) {
+    LOG(INFO) << v.second->idx() << " var_z_prior: " << v.second->var_z_prior();
+  }
 
   float tree_elbo_tmp_start = tree_->ComputeELBO();
   LOG(INFO) << "ELBO before training " << tree_elbo_tmp_start;
@@ -235,8 +261,6 @@ void Solver::Update() {
         n_prob += datum_z_prob;
       }
     }
-    //CHECK_GE(n_prob, 1.0 - kFloatEpsilon) << n_prob;    
-    //CHECK_LE(n_prob, 1.0 + kFloatEpsilon) << n_prob;    
     
     if (collect_target_data_) {
       CollectTargetData(log_weights, log_weight_sum, datum);
@@ -250,42 +274,6 @@ void Solver::Update() {
   BOOST_FOREACH(const UIntFloatPair& ele, n_new) {
     LOG(INFO) << "n_new " << ele.first << " " << ele.second;
   }
-  LOG(INFO) << "s_old ";
-  ostringstream oss;
-  for (int i=0; i<8; ++i) {
-    float sum = 0;
-    for (int v=0; v<3; ++v) {
-      sum += s_old[v][i];
-    }
-    oss << sum << "\t";
-  }
-  //BOOST_FOREACH(const UIntUIntFloatMapPair& s_ele, s_old) {
-  //  oss << s_ele.first << "\t";
-  //  BOOST_FOREACH(const UIntFloatPair& s_ele_ele, s_ele.second) {
-  //    oss << s_ele_ele.first << ":" << s_ele_ele.second << "\t";
-  //  }
-  //  oss << "\n"; 
-  //}
-  LOG(INFO) << oss.str();
-
-  LOG(INFO) << "s_new ";
-  oss.str("");
-  oss.clear();
-  for (int i=0; i<8; ++i) {
-    float sum = 0;
-    for (int v=0; v<3; ++v) {
-      sum += s_new[v][i];
-    }
-    oss << sum << "\t";
-  }
-  //BOOST_FOREACH(const UIntUIntFloatMapPair& s_ele, s_new) {
-  //  oss << s_ele.first << "\t";
-  //  BOOST_FOREACH(const UIntFloatPair& s_ele_ele, s_ele.second) {
-  //    oss << s_ele_ele.first << ":" << s_ele_ele.second << "\t";
-  //  }
-  //  oss << "\n"; 
-  //}
-  LOG(INFO) << oss.str();
 
   tree_->UpdateParamTable(n_new, n_old, s_new, s_old);
   tree_->ReadParamTable();
@@ -302,7 +290,7 @@ void Solver::Update() {
   CHECK(!isnan(elbo));
   //CHECK_LT(elbo, 0) << elbo << " " << tree_elbo_tmp << " " <<  h / train_data_->size() * data_batch->size();
 
-  LOG(ERROR) << iter_ << "," << elbo << "\t" << tree_elbo_tmp << "\t" << h / train_data_->size() * data_batch->size();
+  LOG(ERROR) << epoch_ << " " << iter_ << "," << elbo << "\t" << tree_elbo_tmp << "\t" << h / train_data_->size() * data_batch->size();
 }
 
 void Solver::Test() {
@@ -310,6 +298,7 @@ void Solver::Test() {
 }
 
 void Solver::ClearLastSplit() {
+  LOG(INFO) << "Clear last split";
   for (auto target_data : split_target_data_) {
     if (!target_data->success()) {
       continue;
@@ -321,6 +310,7 @@ void Solver::ClearLastSplit() {
     tree_->vertex(child_vertex_idx)->UpdateParamTable(
         target_data->n_child(), target_data->s_child(), -1.0);
   }
+  LOG(INFO) << "Clear last split done.";
 }
 
 void Solver::SampleVertexToSplit() {
@@ -330,6 +320,10 @@ void Solver::SampleVertexToSplit() {
   vector<TargetDataset*>().swap(split_target_data_);
   for (int i = 0; i < vertexes_to_split_.size(); ++i) {
     split_target_data_.push_back(new TargetDataset(vertexes_to_split_[i]));
+  }
+
+  for(uint32 v_t_p : vertexes_to_split_) {
+    LOG(INFO) << "To split " << v_t_p;
   }
 }
 
@@ -351,12 +345,15 @@ void Solver::CollectTargetData(const UIntFloatMap& log_weights,
 }
 
 void Solver::Split() {
-  Context::set_phase(Context::Phase::kSplit, thread_id_); 
+  tree_->ClearSplitRecords();
   for (int i = 0; i < vertexes_to_split_.size(); ++i) {
     uint32 v_idx = vertexes_to_split_[i];
     Vertex parent_vertex_copy = (*tree_->vertex(v_idx));
     Vertex* child_vertex = new Vertex();
     TargetDataset* target_data = split_target_data_[i];
+
+    LOG(INFO) << "target data size " << target_data->size() << " v=" << v_idx;
+
     // Initialize
     SplitInit(&parent_vertex_copy, child_vertex, target_data);
     // TODO
@@ -371,14 +368,21 @@ void Solver::Split() {
     target_data->set_child_vertex_idx(child_idx);
     target_data->set_success();
   }
-  Context::set_phase(Context::Phase::kVIAfterSplit, thread_id_); 
 }
 
 void Solver::RestrictedUpdate(Vertex* parent, Vertex* new_child,
     TargetDataset* target_data) {
+  LOG(INFO) << "Restricted Update ";
+  LOG(INFO) << "child param: " << new_child->n() << " "
+      << new_child->var_z_prior() << " ";
+  LOG(INFO) << "parent param: " << parent->n() << " "
+      << parent->var_z_prior() << " ";
   /// e-step
   parent->ComputeVarZPrior();
   new_child->ComputeVarZPrior();
+
+  LOG(INFO) << "child var_z_prior: " << new_child->var_z_prior() << " ";
+  LOG(INFO) << "parent var_z_prior: " << parent->var_z_prior() << " ";
 
   const float n_parent_old = target_data->n_parent();
   float& n_parent_new = target_data->n_parent();
@@ -406,16 +410,26 @@ void Solver::RestrictedUpdate(Vertex* parent, Vertex* new_child,
     CHECK(!isnan(log_weight_sum));
     CHECK(!isinf(log_weight_sum));
 #endif
+    float d_n_parent = exp(parent_log_weight - log_weight_sum);
+    float d_n_child = exp(child_log_weight - log_weight_sum);
+    AccumUIntFloatMap(datum->data(), d_n_parent, s_parent_new);
+    AccumUIntFloatMap(datum->data(), d_n_child, s_child_new);
+    h += d_n_parent * (parent_log_weight - log_weight_sum)
+        + d_n_child * (child_log_weight - log_weight_sum);
+    
     n_parent_new += exp(parent_log_weight - log_weight_sum);
     n_child_new += exp(child_log_weight - log_weight_sum);
-    AccumUIntFloatMap(datum->data(), n_parent_new, s_parent_new);
-    AccumUIntFloatMap(datum->data(), n_child_new, s_child_new);
-    h += n_parent_new * (parent_log_weight - log_weight_sum)
-        + n_child_new * (child_log_weight - log_weight_sum);
-    
-    CHECK_GE(n_parent_new + n_child_new, 1.0 - kFloatEpsilon);
-    CHECK_LE(n_parent_new + n_child_new, 1.0 + kFloatEpsilon);
+
+    LOG(INFO) << n_parent_new  << " " <<  n_child_new << " " 
+        << exp(parent_log_weight - log_weight_sum) << " "
+        << exp(child_log_weight - log_weight_sum);
+    //PrintUIntFloatMap(datum->data());
   } // end of datum
+
+  LOG(INFO) << "s_parent_new";
+  PrintUIntFloatMap(s_parent_new);
+  LOG(INFO) << "s_child_new";
+  PrintUIntFloatMap(s_child_new);
   
   parent->UpdateParamLocal(
       n_parent_new, n_parent_old, s_parent_new, s_parent_old);
@@ -424,16 +438,19 @@ void Solver::RestrictedUpdate(Vertex* parent, Vertex* new_child,
   new_child->ConstructParam();
   parent->ConstructParam();
 
+  LOG(INFO) << "Compute ELBO";
   float elbo = parent->ComputeELBO() + new_child->ComputeELBO() - h;
-  LOG(INFO) << "res update: " << elbo << " " << parent->ComputeELBO()
+  LOG(INFO) << "res update: " << elbo << " " << parent->ComputeELBO() << " "
       << new_child->ComputeELBO() << " " << -h;
+
+  LOG(INFO) << "Restricted Update Done.";
 }
 
 void Solver::SplitInit(Vertex* parent, Vertex* new_child,
     TargetDataset* target_data) {
+  LOG(INFO) << "Split Init";
   // Initialize new_child
   new_child->CopyParamsFrom(parent);
-  parent->add_temp_child(new_child);
   FloatVec& new_child_mean = new_child->mutable_mean();
   //float new_child_split_weight = 0;
   const vector<Vertex*>& children = parent->children();
@@ -448,7 +465,7 @@ void Solver::SplitInit(Vertex* parent, Vertex* new_child,
     float n_whole_data_children = 0;
     for (auto child_vertex: children) {
 #ifdef DEBUG
-      CHECK(n.find(child_vertex->idx()) != n.end());
+      CHECK(n.find(child_vertex->idx()) != n.end()) << " " << child_vertex->idx();
 #endif
       n_target_data_children += n.find(child_vertex->idx())->second;
       n_whole_data_children += child_vertex->n();
@@ -496,6 +513,23 @@ void Solver::SplitInit(Vertex* parent, Vertex* new_child,
     // Compute split weight
     //new_child_split_weight = 0.3; //TODO
   }
+
+  new_child->set_idx(-1); //TODO
+  parent->add_temp_child(new_child);
+
+  //TODO
+  std::fill(parent->mutable_s().begin(), parent->mutable_s().end(), 0); 
+  //parent->mutable_n() = 0; 
+  
+  LOG(INFO) << "Parent idx " << parent->idx();
+
+  ostringstream oss;
+  oss << "mean of new child \n";
+  for (int i = 0; i < new_child_mean.size(); ++i) {
+    oss << new_child_mean[i] << " ";
+  }
+  oss << std::endl;
+  LOG(INFO) << oss.str();
 }
 
 //void Solver::SplitInit(Vertex* parent, Vertex* new_child,

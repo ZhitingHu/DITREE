@@ -81,6 +81,7 @@ class Vertex {
   inline int idx() const { return idx_; }
   inline void set_idx(const uint32 idx) { idx_ = idx; }
   inline float n() const { return n_; }
+  inline float& mutable_n() { return n_; }
   inline const FloatVec& s() const { return s_; }
   inline FloatVec& mutable_s() { return s_; }
 
@@ -88,31 +89,29 @@ class Vertex {
     return children_;
   }
   inline void add_child(Vertex* child) {
-    children_.push_back(child);
-    child->set_parent(this);
-    child->set_depth(depth_ + 1);
-    if (children_.size() > 1) {
-      Vertex* child_left_sibling = children_[children_.size() - 2];
-      child->set_left_sibling(child_left_sibling);
-      child_left_sibling->set_right_sibling(child);
+    add_temp_child(child);
+    if(child->left_sibling() != NULL) {
+      child->left_sibling()->set_right_sibling(child);
     }
   }
   // Add temp child, do not set the right_sibling of the 
   //   existing right-most child
   inline void add_temp_child(Vertex* child) {
-    children_.push_back(child);
     child->set_parent(this);
     child->set_depth(depth_ + 1);
-    if (children_.size() > 1) {
-      Vertex* child_left_sibling = children_[children_.size() - 2];
+    if (children_.size() > 0) {
+      Vertex* child_left_sibling = children_[children_.size() - 1];
       child->set_left_sibling(child_left_sibling);
     }
+    children_.push_back(child);
   }
   inline Vertex* parent() { return parent_; }
   inline void set_parent(Vertex* parent) { parent_ = parent; }
+  inline Vertex* left_sibling() { return left_sibling_; }
   inline void set_left_sibling(Vertex* left_sibling) { 
     left_sibling_ = left_sibling; 
   }
+  inline Vertex* right_sibling() { return right_sibling_; }
   inline void set_right_sibling(Vertex* right_sibling) { 
     right_sibling_ = right_sibling; 
   }

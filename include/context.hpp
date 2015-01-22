@@ -13,8 +13,9 @@ namespace ditree {
 // and 2) other lightweight global flags. Underlying data structure is map of
 // string and string, similar to google::CommandLineFlagInfo.
 class Context {
-public:
+ public:
   static Context& Get();
+  void Init();
 
   static inline int get_int32(std::string key) {
     return atoi(get_string(key).c_str());
@@ -26,6 +27,7 @@ public:
     return get_string(key).compare("true") == 0;
   }
   static inline std::string get_string(std::string key) {
+    Get();
     auto it = Get().ctx_.find(key);
     LOG_IF(FATAL, it == Get().ctx_.end())
         << "Failed to lookup " << key << " in context.";
@@ -98,6 +100,12 @@ public:
     Get().param_table_meta_table_
         = petuum::PSTableGroup::GetTableOrDie<int>(kParamTableMetaTableID);
   }
+  inline static int struct_table_row_length() {
+    return Get().struct_table_row_length_;
+  }
+  inline static void set_struct_table_row_length(const int row_length) {
+    Get().struct_table_row_length_ = row_length;
+  }
 
   inline static uint32 table_id(const uint32 index) {
     return index >> Get().num_row_id_bits_;
@@ -109,10 +117,11 @@ public:
       const uint32 row_id) {
     return (table_id << Get().num_row_id_bits_) + row_id;
   }
-private:
+ private:
   // Private constructor. Store all the gflags values.
   Context();
-  void Init();
+
+ private:
   // Underlying data structure
   std::unordered_map<std::string, std::string> ctx_;
 
@@ -127,6 +136,7 @@ private:
   petuum::Table<float> param_table_;
   petuum::Table<int> struct_table_;
   petuum::Table<int> param_table_meta_table_;
+  int struct_table_row_length_;
 };
 
 }   // namespace ditree

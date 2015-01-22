@@ -432,6 +432,8 @@ inline void Vertex::ComputeVarZPrior() {
     // root node has phi=1
     expt_log_phi_z = 0;
   }
+  LOG(INFO) << idx_ << " expt_log_phi_z " << expt_log_phi_z;
+
   //TODO
   CHECK(!isnan(expt_log_phi_z)) << digamma(sigma_[0]) << " " << sigma_[0] << " "
       << digamma_sigma_sum << " " << (sigma_[0] + sigma_[1]);
@@ -440,9 +442,14 @@ inline void Vertex::ComputeVarZPrior() {
   const float digamma_tau_sum = digamma(tau_[0] + tau_[1]);
   const float expt_log_nu_z
       = digamma(tau_[0]) - digamma_tau_sum;
+
+  LOG(INFO) << idx_ << " expt_log_nu_z " << expt_log_nu_z 
+      << " parent_->var_z_prior_part_for_child():" << parent_->var_z_prior_part_for_child();
+
   // E [ log p(z | \nu, \psi) ]
   var_z_prior_ = parent_->var_z_prior_part_for_child() 
       + expt_log_phi_z + expt_log_nu_z;
+
   //TODO
   CHECK(!isnan(var_z_prior_)) << parent_->var_z_prior_part_for_child() << " "
       << expt_log_phi_z << " " << expt_log_nu_z;
@@ -523,7 +530,10 @@ float Vertex::ComputeELBO() {
       - LogVMFProbNormalizer(mean_.size(), kappa_);
 
   CHECK(!isnan(elbo));
-  LOG(INFO) << "index = " << idx_ << "\tELBO = " << elbo << " rho=" << rho << " kappa=" << kappa_;
+  LOG(INFO) << "index = " << idx_ << "\tELBO = " << elbo 
+      << " rho=" << rho << " kappa=" << kappa_ << " " 
+      << LogVMFProbNormalizer(mean_.size(), rho) << " "
+      << LogVMFProbNormalizer(mean_.size(), kappa_);
 
   return elbo;
 }
@@ -533,6 +543,8 @@ void Vertex::CopyParamsFrom(const Vertex* source) {
   Init();
   std::fill(s_.begin(), s_.end(), 0); 
   n_ = 0;
+  //s_ = source->s();
+  //n_ = source->n();
 }
 
 } // namespace ditree

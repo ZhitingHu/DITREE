@@ -78,7 +78,9 @@ int main(int argc, char** argv) {
   CHECK_GT(FLAGS_solver.size(), 0) << "Need a solver definition to train.";
   CHECK_GT(FLAGS_model.size(), 0) << "Need a model definition to train.";
 
-  
+  // Initialize Context
+  ditree::Context& context = ditree::Context::Get(); 
+  context.Init();
   ditree::SolverParameter solver_param;
   ditree::ReadProtoFromTextFileOrDie(FLAGS_solver, &solver_param);
   ditree::DITreeEngine* ditree_engine = new ditree::DITreeEngine(solver_param);

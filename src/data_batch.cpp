@@ -21,7 +21,6 @@ void DataBatch::UpdateSuffStatStruct(const Tree* tree,
 
 void DataBatch::InitSuffStatStruct(const Tree* tree, 
     const vector<Datum*>& data) {
-  LOG(INFO) << "iNIT";
   UIntFloatMap batch_words;
   for (int i = 0; i < size_; ++i) {
     const UIntFloatMap& datum_words 
