@@ -34,6 +34,9 @@ class Solver {
   void RestrictedUpdate(Vertex* parent, Vertex* new_child,
       TargetDataset* target_data);
   
+  // Merge move
+  void Merge();
+
   //TODO
   void Snapshot() {}
   void Restore(const char* resume_file) {}
@@ -58,6 +61,9 @@ class Solver {
   float log_target_data_threshold_;
   int max_target_data_size_;
   vector<TargetDataset*> split_target_data_;
+
+  // for merge
+  vector<pair<uint32, uint32> > vertex_pairs_to_merge_;
   
   petuum::Table<float> train_loss_table_;
   petuum::Table<float> test_loss_table_;

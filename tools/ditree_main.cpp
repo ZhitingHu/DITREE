@@ -42,6 +42,9 @@ DEFINE_int32(max_split_per_table, 1,
 DEFINE_int32(num_table_id_bits, 8,
     "Number of digit for representing table id, must be in (0, 32).");
 
+DEFINE_int32(max_merge_per_table, 1,
+    "Maximum times of merge each epoch per table.");
+
 // DITree Parameters
 DEFINE_string(solver, "",
     "The solver definition protocol buffer text file.");
@@ -81,6 +84,7 @@ int main(int argc, char** argv) {
   // Initialize Context
   ditree::Context& context = ditree::Context::Get(); 
   context.Init();
+
   ditree::SolverParameter solver_param;
   ditree::ReadProtoFromTextFileOrDie(FLAGS_solver, &solver_param);
   ditree::DITreeEngine* ditree_engine = new ditree::DITreeEngine(solver_param);

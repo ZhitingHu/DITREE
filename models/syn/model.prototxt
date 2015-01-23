@@ -9,10 +9,18 @@ vertexes {
   root: true
   child_indexes: 1
   child_indexes: 2
+  child_indexes: 3
+  child_indexes: 4
 }
 vertexes {
   index: 1
 }
 vertexes {
   index: 2
+}
+vertexes {
+  index: 3
+}
+vertexes {
+  index: 4
 }

@@ -28,12 +28,12 @@ class Vertex {
   void UpdateParamTable(const float data_batch_n_z_new,
       const float data_batch_n_z_old, const FloatVec& data_batch_s_z_new,
       const FloatVec& data_batch_s_z_old);
-  void UpdateParamTable(const float n_z, const UIntFloatMap& s_z,
+  void UpdateParamTableByInc(const float n_z, const UIntFloatMap& s_z,
       const float coeff);
-  void UpdateParamTable(const float n_z, const FloatVec& s_z,
+  void UpdateParamTableByInc(const float n_z, const FloatVec& s_z,
       const float coeff);
 
-  float ComputeELBO();
+  float ComputeELBO() const;
 
   void UpdateParamLocal(const float n_z_new, const float n_z_old,
     const UIntFloatMap& s_z_new, const UIntFloatMap& s_z_old);
@@ -85,7 +85,7 @@ class Vertex {
   inline const FloatVec& s() const { return s_; }
   inline FloatVec& mutable_s() { return s_; }
 
-  inline const vector<Vertex*>& children() {
+  inline const vector<Vertex*>& children() const {
     return children_;
   }
   inline void add_child(Vertex* child) {
@@ -105,13 +105,13 @@ class Vertex {
     }
     children_.push_back(child);
   }
-  inline Vertex* parent() { return parent_; }
+  inline Vertex* parent() const { return parent_; }
   inline void set_parent(Vertex* parent) { parent_ = parent; }
-  inline Vertex* left_sibling() { return left_sibling_; }
+  inline Vertex* left_sibling() const { return left_sibling_; }
   inline void set_left_sibling(Vertex* left_sibling) { 
     left_sibling_ = left_sibling; 
   }
-  inline Vertex* right_sibling() { return right_sibling_; }
+  inline Vertex* right_sibling() const { return right_sibling_; }
   inline void set_right_sibling(Vertex* right_sibling) { 
     right_sibling_ = right_sibling; 
   }
@@ -128,6 +128,7 @@ class Vertex {
   void RecursSetDepth(const int parent_depth);
 
   void CopyParamsFrom(const Vertex* source);
+  void MergeFrom(const Vertex* host, const Vertex* guest);
 
  private:
   

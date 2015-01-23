@@ -77,14 +77,16 @@ void Vertex::ConstructParam() {
   var_n_sum_for_parent_ = children_n_sum + n_;
 
   // sigma
-  //LOG(INFO) << idx_ << " sigma_[0] " << sigma_[0] << " " 
-  //    << (sigma_fixed_part_[0] + var_n_sum_for_parent_) << " " << children_n_sum << " " << n_;
+  LOG(INFO) << idx_ << " sigma_[0] " << sigma_[0] << " " 
+      << (sigma_fixed_part_[0] + var_n_sum_for_parent_) << " " 
+      << children_n_sum << " " << n_;
 
   sigma_[0] = sigma_fixed_part_[0] + var_n_sum_for_parent_;
   var_n_sum_for_sibling_ = var_n_sum_for_parent_
       + (right_sibling_ ? right_sibling_->var_n_sum_for_sibling() : 0);
 
-  //LOG(INFO) << idx_ << " sigma_[1] " << sigma_[1] << " " << (sigma_fixed_part_[1] + var_n_sum_for_sibling_ - var_n_sum_for_parent_);
+  LOG(INFO) << idx_ << " sigma_[1] " << sigma_[1] << " " 
+      << (sigma_fixed_part_[1] + var_n_sum_for_sibling_ - var_n_sum_for_parent_);
 
   sigma_[1] = sigma_fixed_part_[1] 
       + (right_sibling_ ? right_sibling_->var_n_sum_for_sibling() : 0);
@@ -92,6 +94,9 @@ void Vertex::ConstructParam() {
   // mean
   const FloatVec mean_prev(mean_);
   std::fill(mean_.begin(), mean_.end(), 0); 
+
+  LOG(INFO) << "here";
+
   for (int c_idx = 0; c_idx < children_.size(); ++c_idx) {
     if (!children_[c_idx]->new_born()) { 
       // child's history
@@ -112,6 +117,9 @@ void Vertex::ConstructParam() {
       mean_[i] += kappa_0_ * kappa_1_ * child_mean[i];
     }
   } // end of children
+
+  LOG(INFO) << "here .1";
+
   const FloatVec& parent_mean = parent_->mean();
   if (!new_born_) {
     for (int i = 0; i < mean_.size(); ++i) {
@@ -123,6 +131,9 @@ void Vertex::ConstructParam() {
       mean_[i] += beta_ * s_[i] + kappa_0_ * kappa_1_ * parent_mean[i];
     }
   }
+
+  LOG(INFO) << "here 2";
+
   // kappa
   kappa_ = 0;
   for (int i = 0; i < mean_.size(); ++i) {
@@ -210,7 +221,7 @@ void Vertex::UpdateParamTable(const float data_batch_n_z_new,
   param_table->DenseBatchInc(idx_, update_batch);
 }
 
-void Vertex::UpdateParamTable(const float n_z, const UIntFloatMap& s_z,
+void Vertex::UpdateParamTableByInc(const float n_z, const UIntFloatMap& s_z,
     const float coeff) {
   petuum::Table<float>* param_table = Context::param_table();
   petuum::DenseUpdateBatch<float> update_batch(
@@ -223,7 +234,7 @@ void Vertex::UpdateParamTable(const float n_z, const UIntFloatMap& s_z,
   param_table->DenseBatchInc(idx_, update_batch);
 }
 
-void Vertex::UpdateParamTable(const float n_z, const FloatVec& s_z,
+void Vertex::UpdateParamTableByInc(const float n_z, const FloatVec& s_z,
     const float coeff) {
   petuum::Table<float>* param_table = Context::param_table();
   petuum::DenseUpdateBatch<float> update_batch(
@@ -481,7 +492,7 @@ inline float Vertex::ComputeTaylorApprxCoeff(const float rho_apprx) {
       * kappa_0_ * kappa_0_ * kappa_1_ * kappa_2_ / rho_apprx;
 }
 
-float Vertex::ComputeELBO() {
+float Vertex::ComputeELBO() const {
   float elbo = 0;
   elbo += beta_ * DotProdFloatVectors(mean_, s_) 
       + n_ * LogVMFProbNormalizer(mean_.size(), beta_)
@@ -545,6 +556,41 @@ void Vertex::CopyParamsFrom(const Vertex* source) {
   n_ = 0;
   //s_ = source->s();
   //n_ = source->n();
+}
+
+/// Merge params from host and guest, but do not change the tree structure
+void Vertex::MergeFrom(const Vertex* host, const Vertex* guest) {
+  LOG(INFO) << "Merge from " << host->idx() << " " << guest->idx();
+  CopyParamsFrom(host);
+  parent_ = host->parent();
+  left_sibling_ = host->left_sibling();
+  right_sibling_ = host->right_sibling();
+  root_ = host->root();
+  new_born_ = host->new_born();
+  for (const auto host_child : host->children()) {
+    // Note: do not use add_child(), since it will change the link 
+    //   structure of childs
+    children_.push_back(host_child);
+  }
+  for (const auto guest_child : guest->children()) {
+    // Note: do not use add_child(), since it will change the link 
+    //   structure of childs
+    children_.push_back(guest_child);
+  }
+  // Suff stat
+  n_ = host->n() + guest->n();     
+  CopyFloatVec(host->s(), 1.0, s_);
+  AccumFloatVec(guest->s(), 1.0, s_);
+  //
+  ConstructParam();
+
+  //LOG(INFO) << "Merge from param checking";
+  //LOG(INFO) << tau_[0] << " " << host->tau(0) + guest->tau(0) - 1.0; 
+  //LOG(INFO) << tau_[1] << " " << host->tau(1) + guest->tau(1) - alpha_; 
+  //LOG(INFO) << sigma_[0] << " " << host->sigma(0) + guest->sigma(0) - 1.0; 
+  //LOG(INFO) << sigma_[1] << " " << host->sigma(1);
+
+  //TODO: history
 }
 
 } // namespace ditree

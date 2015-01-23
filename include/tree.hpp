@@ -27,18 +27,22 @@ class Tree {
 
   void ReadParamTable();
 
+  void ConstructTableMetaInfo();
+
+  void SampleVertexToSplit(vector<uint32>& vertex_to_split);
+  // Return idx of the new_vertex
+  uint32 AcceptSplitVertex(Vertex* new_vertex, const Vertex* parent_vertex_copy);
   void UpdateTreeStructAfterSplit();
   void UpdateStructTableAfterSplit();
   void ClearSplitRecords();
 
-  void ConstructTableMetaInfo();
-
-  const void SampleVertexToSplit(vector<uint32>& vertex_to_split);
+  void SampleVertexPairsToMerge(
+      vector<pair<uint32, uint32> >& vertex_pair_to_merge);
+  void AcceptMergeVertexes(const uint32 host_v_idx, const uint32 guest_v_idx);
+  void UpdateTreeStructAfterMerge();
+  void MergeTwoVector(const uint32 host_v_idx, const uint32 guest_v_idx);
 
   float ComputeELBO();
-
-  // Return idx of the new_vertex
-  uint32 AcceptSplitVertex(Vertex* new_vertex, const Vertex* parent_vertex_copy);
 
   // number of nodes
   inline int size() { return vertexes_.size(); }
@@ -78,8 +82,8 @@ class Tree {
 
   // table_idx => { vertex idx governed by this table when spliting }
   map<uint32, set<uint32> > table_idx_governed_vertex_idxes_;
-  // table_idx => { num of vertexes in this table }
-  map<uint32, int> table_idx_vertex_size_;
+  // table_idx => { vertex idx in this table, governed by this table when merging }
+  map<uint32, set<uint32> > table_idx_vertex_idxes_;
   // table_idx => { parent vertex idx }
   //Note: can be inferred from parent_, do not need storing in PS
   //map<uint32, set<uint32> > table_idx_parent_vertex_idxes_;

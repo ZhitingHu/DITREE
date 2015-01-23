@@ -115,6 +115,8 @@ class Context {
   }
   inline static uint32 make_vertex_id(const uint32 table_id,
       const uint32 row_id) {
+    CHECK_LT(table_id, 1 << Get().num_table_id_bits_);
+    CHECK_LT(row_id, 1 << Get().num_row_id_bits_);
     return (table_id << Get().num_row_id_bits_) + row_id;
   }
  private:
