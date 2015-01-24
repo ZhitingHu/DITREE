@@ -8,6 +8,8 @@
 
 namespace ditree {
 
+const uint32 Tree::kTempParentTableIdx = -1;
+
 Tree::Tree(const TreeParameter& param, const int thread_id)
     : root_(NULL), root_parent_(NULL), max_table_idx_(-1),
     thread_id_(thread_id) {
@@ -32,8 +34,8 @@ void Tree::Init(const TreeParameter& param) {
   tot_num_threads_ = Context::get_int32("num_clients") * num_threads;
 
   param_ = param;
-  max_table_num_ = (1 << Context::get_int32("num_table_id_bits"));
-  table_idx_governed_size_ = GetIdxCntPairMutableMinHeap(max_table_num_); 
+  // -1 for kTempParentTableIdx (-1)
+  max_table_num_ = (1 << Context::get_int32("num_table_id_bits")) - 1;
 
   root_parent_ = new Vertex();
   // Add vertexes
@@ -50,7 +52,7 @@ void Tree::Init(const TreeParameter& param) {
       root_->set_parent(root_parent_);
     }
   }
-  CHECK(root_ != NULL) << "Cannot find root.";
+  CHECK(root_ != NULL) << " Cannot find root.";
   // Connect the vertexes
   for (int v_idx_i = 0; v_idx_i < param.vertexes_size(); ++v_idx_i) {
     const VertexParameter& vertex_param = param.vertexes(v_idx_i);
@@ -133,172 +135,141 @@ void Tree::ReadParamTable() {
 // IMPORTANT: the result of the function must be deterministic 
 //   given the current tree structure, esp., all threads 
 //   produce exactly the same results
-//
-// The only garuantee of the table organization is: all the 
-//   children of a vertex is in the same table
 void Tree::ConstructTableMetaInfo() {
   // Count the number of governed vertexes of each table
   BOOST_FOREACH(UIntVertexPair& ele, vertexes_) {
     uint32 vertex_idx = ele.first;
     uint32 table_idx = Context::table_id(vertex_idx);
-    // insert tables
     table_idx_vertex_idxes_[table_idx].insert(vertex_idx);
-    table_idx_governed_vertex_idxes_[table_idx];
+    // a vertex' children can be in the same tabel with the vertex
+    UpdateParentChildTableRelation(table_idx, table_idx, 0);
 
     const vector<Vertex*> children = ele.second->children();
     if (children.size() > 0) {
       // Only check the first child, since one vertex's children 
       // have the same table id 
       uint32 child_table_idx = Context::table_id(children[0]->idx());
-      table_idx_governed_vertex_idxes_[child_table_idx].insert(vertex_idx);
+      if (child_table_idx != table_idx) {
+        table_idx_governed_vertex_idxes_[child_table_idx].insert(vertex_idx);
+        // Record the parent-child table relation
+        UpdateParentChildTableRelation(table_idx, child_table_idx, 0);
+      } else {
+        table_idx_governed_vertex_idxes_[table_idx].insert(vertex_idx);
+      }
       ele.second->set_child_table_idx(child_table_idx);
     }
-    max_table_idx_ = max(max_table_idx_, table_idx);
-
-    LOG(INFO) << "MAX_table_idx_ " << max_table_idx_ << " " 
-        << table_idx << " " << client_id_ << " " << thread_id_;
   }
-  // Table idx is expected to be continuous
-  CHECK_EQ(max_table_idx_ + 1, table_idx_vertex_idxes_.size());
 
-  // Count table governing size
+  // Count child table sizes
   // Used for child allocation
-  for (const auto ele : table_idx_governed_vertex_idxes_) {
-    table_idx_governed_size_->push(IdxCntPair(ele.first, ele.second.size()));
+  typedef pair<const uint32, IdxCntPairMutableMinHeap*> IdxChildSizesPair;
+  BOOST_FOREACH(IdxChildSizesPair& ele, table_idx_child_table_sizes_) {
+  //typedef pair<uint32, set<uint32> > UIntSetPair;
+  //BOOST_FOREACH(UIntSetPair& ele, table_idx_governed_vertex_idxes_) {
+#ifdef DEBUG
+    CHECK(table_idx_child_tables_.find(ele.first) 
+        != table_idx_child_tables_.end());
+#endif
+    for (const auto child_table_idx : table_idx_child_tables_[ele.first]) {
+#ifdef DEBUG
+    CHECK(table_idx_governed_vertex_idxes_.find(child_table_idx) 
+        != table_idx_governed_vertex_idxes_.end());
+#endif
+      const int child_table_size 
+          = table_idx_governed_vertex_idxes_[child_table_idx].size();
+      UpdateParentChildTableRelation(
+          ele.first, child_table_idx, child_table_size);
+    }
   }
 
   // Create empty tables so that as many threads as possible
   // will have at least one table allocated
-  const int temp_max_table_num = min(tot_num_threads_, max_table_num_);
-  // TODO
+  const int num_clients = Context::get_int32("num_clients");
+  const int num_threads = Context::get_int32("num_app_threads");
+  const int temp_max_table_num = min(num_clients * num_threads, max_table_num_);
   LOG(INFO) << "temp_max_table_num " << temp_max_table_num;
   CHECK_GT(temp_max_table_num, 0);
   for (uint32 t_idx = max_table_idx_ + 1; t_idx < temp_max_table_num; ++t_idx) {
     LOG(INFO) << "CREATE EMPTY " << t_idx;
     table_idx_governed_vertex_idxes_[t_idx] = set<uint32>();
+    // set the parent table as kTempParentTableIdx(-1)
+    UpdateParentChildTableRelation(kTempParentTableIdx, t_idx, 0);
+    UpdateParentChildTableRelation(t_idx, t_idx, 0);
     table_idx_vertex_idxes_[t_idx] = set<uint32>();
-    table_idx_governed_size_->push(IdxCntPair(t_idx, 0));
   }
-
   // For vertexes with no children,
   //  allocate tables for their future children, may create new table
   // Allocate children to smallest table first, but garuantee that
   //  one table has only one parent table
   BOOST_FOREACH(UIntVertexPair& ele, vertexes_) {
+    LOG(INFO) << "hehe " << ele.first;
     if (ele.second->children().size() > 0 || 
         ele.second->depth() >= Context::get_int32("max_depth")) {
       continue;
     }
     AllocateChildTable(ele.first);
   }
-
-  // TODO
-  LOG(INFO) << "Meta table info " << client_id_ << " " << thread_id_;
-  for (auto& t : table_idx_vertex_idxes_ ) {
-    LOG(INFO) << "v " << t.first << " " << t.second.size();
-    LOG(INFO) << "g " << t.first << " " << table_idx_governed_vertex_idxes_[t.first].size();
-  }
-  LOG(INFO) << "MAX_TABLE_IDX_ " << max_table_idx_;
 }
 
-//void Tree::UpdateParentChildTableRelation(const uint32 parent_table_idx,
-//    const uint32 child_table_idx, const int child_table_size) {
-//  LOG(INFO) << "Update Parent Child table relation " << parent_table_idx << " " 
-//      << child_table_idx << " " << child_table_size; 
-//  IdxCntPairMutableMinHeap* child_table_idx_sizes;
-//  if (table_idx_child_table_sizes_[parent_table_idx] == NULL) {
-//    child_table_idx_sizes = GetIdxCntPairMutableMinHeap(max_table_num_);
-//    child_table_idx_sizes->push(IdxCntPair(child_table_idx, child_table_size));
-//    table_idx_child_table_sizes_[parent_table_idx] = child_table_idx_sizes;
-//  } else {
-//    child_table_idx_sizes = table_idx_child_table_sizes_[parent_table_idx];
-//    if (table_idx_child_tables_[parent_table_idx].find(child_table_idx)
-//        == table_idx_child_tables_[parent_table_idx].end()) {
-//      child_table_idx_sizes->push(IdxCntPair(child_table_idx, child_table_size));
-//    } else {
-//      child_table_idx_sizes->update(IdxCntPair(child_table_idx, child_table_size));
-//    }
-//  }
-//  table_idx_child_tables_[parent_table_idx].insert(child_table_idx);
-//}
-//
-//bool Tree::GetNextCandidateChildTable(const uint32 table_idx,
-//    IdxCntPair& child_table) {
-//  LOG(INFO) << "gETNEX " << table_idx;
-//  // First, check empty tables under kTempParentTableIdx
-//  if (table_idx_child_tables_[kTempParentTableIdx].size() > 0) {
-//    LOG(INFO) << "HAVE empty";
-//    child_table = table_idx_child_table_sizes_[kTempParentTableIdx]->top();
-//#ifdef DEBUG
-//    CHECK_EQ(child_table.second, 0);
-//#endif
-//    table_idx_child_table_sizes_[kTempParentTableIdx]->pop();
-//    table_idx_child_tables_[kTempParentTableIdx].erase(child_table.first);
-//    return true;
-//  } else if (table_idx_child_tables_[table_idx].size() > 0) {
-//    LOG(INFO) << "HERe";
-//    child_table = table_idx_child_table_sizes_[table_idx]->top();
-//    return true;
-//  } else {
-//    LOG(INFO) << "HERe 1";
-//    // No candidate child tables, need create a new table
-//    return false;
-//  }
-//}
-//
-//void Tree::AllocateChildTable(const uint32 vertex_idx) {
-//  LOG(INFO) << "Alloc child table for " << vertex_idx;
-//  const uint32 table_idx = Context::table_id(vertex_idx);
-//  IdxCntPair child_table;
-//  if (!GetNextCandidateChildTable(table_idx, child_table) ||
-//      child_table.second >= Context::get_int32("max_size_per_table")) {
-//    LOG(INFO) << "Create table for child table for " << vertex_idx;
-//    // Create new table
-//    child_table.first = max_table_idx_;
-//    child_table.second = 1;
-//    table_idx_governed_vertex_idxes_[child_table.first].insert(vertex_idx);
-//    table_idx_vertex_idxes_[child_table.first] = set<uint32>();
-//    UpdateParentChildTableRelation(child_table.first, child_table.first, 
-//      child_table.second);
-//    ++max_table_idx_;
-//  } else {
-//    // Use existing table
-//#ifdef DEBUG
-//    CHECK(table_idx_governed_vertex_idxes_.find(child_table.first)
-//        != table_idx_governed_vertex_idxes_.end());
-//#endif
-//    LOG(INFO) << table_idx_governed_vertex_idxes_[child_table.first].size()
-//        << " " <<  child_table.second << " v_idx: " << vertex_idx << " " << child_table.first;
-//    for (uint32 ele : table_idx_governed_vertex_idxes_[child_table.first]) {
-//      LOG(INFO) << ele;
-//    }
-//    table_idx_governed_vertex_idxes_[child_table.first].insert(vertex_idx);
-//    child_table.second++;
-//#ifdef DEBUG
-//    CHECK_EQ(table_idx_governed_vertex_idxes_[child_table.first].size(),
-//        child_table.second);
-//#endif
-//  }
-//  UpdateParentChildTableRelation(table_idx, child_table.first, 
-//      child_table.second);
-//  vertexes_[vertex_idx]->set_child_table_idx(child_table.first);
-//}
+void Tree::UpdateParentChildTableRelation(const uint32 parent_table_idx,
+    const uint32 child_table_idx, const int child_table_size) {
+  LOG(INFO) << "Update Parent Child table relation " << parent_table_idx << " " 
+      << child_table_idx << " " << child_table_size; 
+  IdxCntPairMutableMinHeap* child_table_idx_sizes;
+  if (table_idx_child_table_sizes_[parent_table_idx] == NULL) {
+    child_table_idx_sizes = GetIdxCntPairMutableMinHeap(max_table_num_);
+    child_table_idx_sizes->push(IdxCntPair(child_table_idx, child_table_size));
+    table_idx_child_table_sizes_[parent_table_idx] = child_table_idx_sizes;
+  } else {
+    child_table_idx_sizes = table_idx_child_table_sizes_[parent_table_idx];
+    if (table_idx_child_tables_[parent_table_idx].find(child_table_idx)
+        == table_idx_child_tables_[parent_table_idx].end()) {
+      child_table_idx_sizes->push(IdxCntPair(child_table_idx, child_table_size));
+    } else {
+      child_table_idx_sizes->update(IdxCntPair(child_table_idx, child_table_size));
+    }
+  }
+  table_idx_child_tables_[parent_table_idx].insert(child_table_idx);
+}
+
+bool Tree::GetNextCandidateChildTable(const uint32 table_idx,
+    IdxCntPair& child_table) {
+  LOG(INFO) << "gETNEX " << table_idx;
+  // First, check empty tables under kTempParentTableIdx
+  if (table_idx_child_tables_[kTempParentTableIdx].size() > 0) {
+    LOG(INFO) << "HAVE empty";
+    child_table = table_idx_child_table_sizes_[kTempParentTableIdx]->top();
+#ifdef DEBUG
+    CHECK_EQ(child_table.second, 0);
+#endif
+    table_idx_child_table_sizes_[kTempParentTableIdx]->pop();
+    table_idx_child_tables_[kTempParentTableIdx].erase(child_table.first);
+    return true;
+  } else if (table_idx_child_tables_[table_idx].size() > 0) {
+    LOG(INFO) << "HERe";
+    child_table = table_idx_child_table_sizes_[table_idx]->top();
+    return true;
+  } else {
+    LOG(INFO) << "HERe 1";
+    // No candidate child tables, need create a new table
+    return false;
+  }
+}
 
 void Tree::AllocateChildTable(const uint32 vertex_idx) {
   LOG(INFO) << "Alloc child table for " << vertex_idx;
-#ifdef DEBUG
-  CHECK_GT(table_idx_governed_size_->size(), 0);
-#endif
-  IdxCntPair child_table = table_idx_governed_size_->top();
-  if (child_table.second >= Context::get_int32("max_size_per_table")) {
-    LOG(INFO) << "Create table for children of " << vertex_idx;
+  const uint32 table_idx = Context::table_id(vertex_idx);
+  IdxCntPair child_table;
+  if (!GetNextCandidateChildTable(table_idx, child_table) ||
+      child_table.second >= Context::get_int32("max_size_per_table")) {
+    LOG(INFO) << "Create table for child table for " << vertex_idx;
     // Create new table
     child_table.first = max_table_idx_;
     child_table.second = 1;
     table_idx_governed_vertex_idxes_[child_table.first].insert(vertex_idx);
-    table_idx_governed_size_->push(
-        IdxCntPair(child_table.first, child_table.second));
     table_idx_vertex_idxes_[child_table.first] = set<uint32>();
+    UpdateParentChildTableRelation(child_table.first, child_table.first, 
+      child_table.second);
     ++max_table_idx_;
   } else {
     // Use existing table
@@ -306,31 +277,25 @@ void Tree::AllocateChildTable(const uint32 vertex_idx) {
     CHECK(table_idx_governed_vertex_idxes_.find(child_table.first)
         != table_idx_governed_vertex_idxes_.end());
 #endif
-
     LOG(INFO) << table_idx_governed_vertex_idxes_[child_table.first].size()
         << " " <<  child_table.second << " v_idx: " << vertex_idx << " " << child_table.first;
     for (uint32 ele : table_idx_governed_vertex_idxes_[child_table.first]) {
       LOG(INFO) << ele;
     }
-
     table_idx_governed_vertex_idxes_[child_table.first].insert(vertex_idx);
     child_table.second++;
 #ifdef DEBUG
     CHECK_EQ(table_idx_governed_vertex_idxes_[child_table.first].size(),
         child_table.second);
 #endif
-    table_idx_governed_size_->update(
-        IdxCntPair(child_table.first, child_table.second));
   }
+  UpdateParentChildTableRelation(table_idx, child_table.first, 
+      child_table.second);
   vertexes_[vertex_idx]->set_child_table_idx(child_table.first);
 }
 
-
 //TODO: add more random factors
 void Tree::SampleVertexToSplit(vector<uint32>& vertexes_to_split) {
-  LOG(INFO) << "Sample to split max " << max_table_idx_ << " " 
-      << client_id_ << " " << thread_id_;
-
   vertexes_to_split.clear();
   // to prevent duplication
   set<uint32> vertexes_set;
@@ -339,7 +304,6 @@ void Tree::SampleVertexToSplit(vector<uint32>& vertexes_to_split) {
   const int step_size = tot_num_threads_;
   uint32 table_idx = thread_id_;
   for (; table_idx <= max_table_idx_; table_idx += step_size) {
-    LOG(INFO) << "Sample to split table: " << table_idx << "  by " << client_id_ << " " << thread_id_;
 #ifdef DEBUG
     CHECK(table_idx_governed_vertex_idxes_.find(table_idx)
         != table_idx_governed_vertex_idxes_.end());
@@ -351,8 +315,7 @@ void Tree::SampleVertexToSplit(vector<uint32>& vertexes_to_split) {
     for (uint32 v_idx : governed_vertexes) {
       vertex_idxes.push_back(v_idx);
 #ifdef DEBUG
-      CHECK(vertexes_.find(v_idx) != vertexes_.end()) 
-          << "v_idx: " << v_idx;
+      CHECK(vertexes_.find(v_idx) != vertexes_.end());
 #endif
       vertex_weights.push_back(vertexes_[v_idx]->n());
     } 
@@ -368,8 +331,6 @@ void Tree::SampleVertexToSplit(vector<uint32>& vertexes_to_split) {
       }
     }
   } // end of tables
-
-  LOG(INFO) << "Sample to split #v=" << vertexes_to_split.size() << " " << client_id_ << " " << thread_id_;
 }
 
 uint32 Tree::AcceptSplitVertex(Vertex* new_vertex,
@@ -380,18 +341,24 @@ uint32 Tree::AcceptSplitVertex(Vertex* new_vertex,
   CHECK(table_idx_vertex_idxes_.find(child_table_idx)
       != table_idx_vertex_idxes_.end());
 #endif
-  // Do not assign vertex_idx based on vertex_idxes.size(),
-  // since the vertex idxes might not be continuous. Use 
-  // (max vertex idx + 1) instead
-  uint32 child_idx = *(--table_idx_vertex_idxes_[child_table_idx].end()) + 1;
-  CHECK_EQ(Context::table_id(child_idx), child_table_idx) 
-      << "Table size exceeds limit. child_idx=" << child_idx;
-  //int row_id = table_idx_vertex_idxes_[child_table_idx].size();
-  //uint32 child_idx = Context::make_vertex_id(child_table_idx, row_id);
+  int size = table_idx_vertex_idxes_[child_table_idx].size();
+  uint32 child_idx = Context::make_vertex_id(child_table_idx, size);
   new_vertex->set_idx(child_idx);
   table_idx_vertex_idxes_[child_table_idx].insert(child_idx);
 
   Vertex* parent_vertex = vertexes_[parent_vertex_copy->idx()];
+  /// Add to the tree structure
+  //#ifdef DEBUG
+  //CHECK(vertexes_.find(child_idx) == vertexes_.end());
+  //#endif
+  //vertexes_[child_idx] = new_vertex;
+  //parent_vertex->add_child(new_vertex);
+
+  /// Allocate child table for future children 
+  //table_idx_vertex_size_[child_table_idx]++;
+  //if (new_vertex->depth() < Context::get_int32("max_depth")) {
+  //  AllocateChildTable(child_idx);
+  //}
 
   /// Update param table
   new_vertex->UpdateParamTableByInc(new_vertex->n(), new_vertex->s(), 1.0);
@@ -404,7 +371,6 @@ uint32 Tree::AcceptSplitVertex(Vertex* new_vertex,
   return child_idx;
 }
 
-/// The result is deterministic
 void Tree::UpdateTreeStructAfterSplit() {
   set<uint32> local_new_vertex_idxes;
   for (const auto& record : vertex_split_records_) {
@@ -420,9 +386,6 @@ void Tree::UpdateTreeStructAfterSplit() {
       = struct_table->Get<petuum::DenseRow<int> >(0, &row_acc);
   r_meta.CopyToVector(&row_cache_meta);
   
-  LOG(INFO) << "UpdateTreeStructAfterSplit " << row_cache_meta[0] << " " << row_cache_meta[1] 
-      << " " << client_id_ << " " << thread_id_ ;
-
   // Records
   vector<int> row_cache(Context::struct_table_row_length());
   for (int t_idx = 0; t_idx < tot_num_threads_; ++t_idx) {
@@ -440,29 +403,19 @@ void Tree::UpdateTreeStructAfterSplit() {
   } // end of rows
 
   // TODO
-  LOG(INFO) << "#records: " << vertex_split_records_.size()
-      << " " << client_id_ << " " << thread_id_ ;
-  for (auto r_tmp : vertex_split_records_) {
-    LOG(INFO) << r_tmp.first << " vs " << r_tmp.second;
-  }
+  LOG(INFO) << "#records: " << vertex_split_records_.size();
 
   //TODO: just for test
   set<uint32> new_vertex_set;
-
-  // IMPORTANT: this is an deterministic operation 
-  //   (all threads produce exactly the same results) 
-  //
-  // Sort to ensure deterministic
-  std::sort(vertex_split_records_.begin(), vertex_split_records_.end(),
-      SortBySecondOfPair());
   /// Update local structure
   // Add to the tree structure
+  //int r_idx = num_local_records;
+  //for (int r_idx = 0; r_idx < vertex_split_records_.size(); ++r_idx)
   for (const auto& record : vertex_split_records_) {
     uint32 new_vertex_idx = record.second;
     uint32 parent_idx = record.first;
 #ifdef DEBUG
-    CHECK(vertexes_.find(new_vertex_idx) == vertexes_.end()) 
-        << " new_vertex_idx=" << new_vertex_idx << " parent_idx=" << parent_idx;
+    CHECK(vertexes_.find(new_vertex_idx) == vertexes_.end());
 #endif
     VertexParameter vertex_param;
     vertex_param.set_index(new_vertex_idx);
@@ -475,6 +428,12 @@ void Tree::UpdateTreeStructAfterSplit() {
     new_vertex_set.insert(new_vertex_idx);
   }
   // Allocate child table for future children
+  // IMPORTANT: this is an deterministic operation 
+  //   (all threads produce exactly the same results) 
+  //
+  // Sort to ensure deterministic
+  std::sort(vertex_split_records_.begin(), vertex_split_records_.end(),
+      SortBySecondOfPair());
   for (const auto& record : vertex_split_records_) {
     const uint32 new_vertex_idx = record.second; 
     uint32 new_vertex_table_idx = Context::table_id(record.second);
@@ -493,22 +452,12 @@ void Tree::UpdateTreeStructAfterSplit() {
 }
 
 void Tree::UpdateStructTableAfterSplit() {
-  petuum::Table<int>* struct_table = Context::struct_table();
-  /// Read struct table meta info
-  petuum::RowAccessor row_acc;
-  vector<int> row_cache_meta(tot_num_threads_);
-  const auto& r_meta 
-      = struct_table->Get<petuum::DenseRow<int> >(0, &row_acc);
-  r_meta.CopyToVector(&row_cache_meta);
-
   const int num_records = vertex_split_records_.size();
+  petuum::Table<int>* struct_table = Context::struct_table();
   // Put num_records in the first row of struct table
   petuum::DenseUpdateBatch<int> update_batch_meta(global_worker_id_, 1);
-
-  update_batch_meta[global_worker_id_] 
-      = num_records - row_cache_meta[global_worker_id_];
+  update_batch_meta[0] = num_records;
   struct_table->DenseBatchInc(0, update_batch_meta);
-
   // Put records in the corr. row of struct table
   if (num_records > 0) {
     const int num_cols = num_records * kNumStructTableRecordCols;
@@ -518,21 +467,12 @@ void Tree::UpdateStructTableAfterSplit() {
       update_batch[r_idx * 2] = vertex_split_records_[r_idx].first;
       update_batch[r_idx * 2 + 1] = vertex_split_records_[r_idx].second;
     }
-    struct_table->DenseBatchInc((global_worker_id_ + 1), update_batch);
+    struct_table->DenseBatchInc(global_worker_id_ + 1, update_batch);
   }
 }
 
-void Tree::InitSplit() {
-  // clear split records
-  vector<pair<uint32, uint32> >().swap(vertex_split_records_);
-  // update table idx governed sizes
-#ifdef DEBUG
-  CHECK_EQ(table_idx_governed_size_->size(),
-      table_idx_governed_vertex_idxes_.size());
-#endif
-  for (const auto& ele : table_idx_governed_vertex_idxes_) {
-    table_idx_governed_size_->update(IdxCntPair(ele.first, ele.second.size()));
-  }
+void Tree::ClearSplitRecords() {
+ vector<pair<uint32, uint32> >().swap(vertex_split_records_);
 }
 
 void Tree::SampleVertexPairsToMerge(
@@ -620,36 +560,6 @@ void Tree::SampleVertexPairsToMerge(
   } // end of tables
 }
 
-void Tree::UpdateStructTableAfterMerge() {
-  petuum::Table<int>* struct_table = Context::struct_table();
-  /// Read struct table meta info
-  petuum::RowAccessor row_acc;
-  vector<int> row_cache_meta(tot_num_threads_);
-  const auto& r_meta 
-      = struct_table->Get<petuum::DenseRow<int> >(0, &row_acc);
-  r_meta.CopyToVector(&row_cache_meta);
-
-  const int num_records = vertex_merge_records_.size();
-  // Put num_records in the first row of struct table
-  petuum::DenseUpdateBatch<int> update_batch_meta(global_worker_id_, 1);
-
-  update_batch_meta[global_worker_id_] 
-      = num_records - row_cache_meta[global_worker_id_];
-  struct_table->DenseBatchInc(0, update_batch_meta);
-
-  // Put records in the corr. row of struct table
-  if (num_records > 0) {
-    const int num_cols = num_records * kNumStructTableRecordCols;
-    CHECK_LE(num_cols, Context::struct_table_row_length());
-    petuum::DenseUpdateBatch<int> update_batch(0, num_cols);
-    for (int r_idx = 0; r_idx < num_records; ++r_idx) {
-      update_batch[r_idx * 2] = vertex_merge_records_[r_idx].first;
-      update_batch[r_idx * 2 + 1] = vertex_merge_records_[r_idx].second;
-    }
-    struct_table->DenseBatchInc((global_worker_id_ + 1), update_batch);
-  }
-}
-
 void Tree::UpdateTreeStructAfterMerge() {
   /// Read struct table
   petuum::Table<int>* struct_table = Context::struct_table();
@@ -700,13 +610,30 @@ void Tree::UpdateTreeStructAfterMerge() {
     if (it != vertex_idx_update.end()) {
       guest_v_idx = it->second;
     } 
-    MergeTwoVertex(host_v_idx, guest_v_idx, vertex_idx_update);
+    MergeTwoVector(host_v_idx, guest_v_idx);
   }
+
+//  for (const auto& record : vertex_split_records_) {
+//    const uint32 new_vertex_idx = record.second; 
+//    uint32 new_vertex_table_idx = Context::table_id(record.second);
+//#ifdef DEBUG
+//    CHECK(vertexes_.find(new_vertex_idx) != vertexes_.end());
+//#endif
+//    if (local_new_vertex_idxes.find(new_vertex_idx)
+//        == local_new_vertex_idxes.end()) {
+//      table_idx_vertex_idxes_[new_vertex_table_idx].insert(new_vertex_idx);
+//    }
+//    if (vertexes_[new_vertex_idx]->depth() < Context::get_int32("max_depth")) {
+//      AllocateChildTable(new_vertex_idx);
+//    }
+//  }
 }
 
+/////////////////////////////////////////////
+// TO BE COMPLETE
+////////////////////////////////////////////
 // The result is deterministic
-void Tree::MergeTwoVertex(const uint32 host_v_idx, const uint32 guest_v_idx,
-  map<uint32, uint32>& vertex_idx_update) {
+void MergeTwoVector(const uint32 host_v_idx, const uint32 guest_v_idx) {
 #ifdef DEBUG
   CHECK(vertexes_.find(host_v_idx) != vertexes_.end());
   CHECK(vertexes_.find(guest_v_idx) != vertexes_.end());
@@ -717,57 +644,27 @@ void Tree::MergeTwoVertex(const uint32 host_v_idx, const uint32 guest_v_idx,
   /// Update param table 
   host_v->UpdateParamTableByInc(guest_v->n(), guest_v->s(), 1.0);
 
-  /// Update local tree structure
   /// Remove guest_v
-  // *) child list of host_v & parent ptr of guest_v's children
-  // *) child list of guest_v's parent
-  // *) sibling ptr of guest_v's neibors
-  // *) vertexes_: remove guest_v
-  // *) table_idx_vertex_idxes_: remove guest_v
-  // *) table_idx_governed_vertex_idxes_: remove guest_v
-  //
-  /// IF host_child_table != guest_child_table:
-  /// Merge table
-  // *) idx of vertexes in guest_child_table (including guest's children)
-  // *) vertexes_ accordingly
-  // *) child_table_idx of the parents of vertexes in guest_child_table
-  // *) table_idx_vertex_idxes_
-  // *) table_idx_governed_vertex_idxes_
-  // *) vertex_idx_update map
-  //
-  // *) table_idx_governed_size_ is updated in a batch manner
-   
-  /// IF host_child_table != guest_child_table:
-  /// Merge table
+  // If child tables are different, merge them
   const uint32 host_child_table_idx = host_v->child_table_idx();
   const uint32 guest_child_table_idx = guest_v->child_table_idx();
   if (host_child_table_idx != guest_child_table_idx) {
-    LOG(INFO) << "Merge table " << host_child_table_idx << " and " << guest_child_table_idx
-       << " with host_v " << host_v_idx << " guest_v " << guest_v_idx;  
+    // Change idx of vertexes in guest_child_table
+    // (including guest's children)
 #ifdef DEBUG
     CHECK(table_idx_vertex_idxes_.find(guest_child_table_idx) 
         != table_idx_vertex_idxes_.end());
 #endif
-    //TODO: merge the smaller table to the bigger one
     set<uint32>& host_vertex_idxes
         = table_idx_vertex_idxes_[host_child_table_idx];
-    const set<uint32>& guest_vertex_idxes
+    set<uint32>& guest_vertex_idxes
         = table_idx_vertex_idxes_[guest_child_table_idx];
     // Expected to iterate in order
-    // guest_vertex_idxes will not be modified in this loop
     for (auto vertex_idx : guest_vertex_idxes) {
-      //const uint32 vertex_new_idx
-      //    = Context::make_vertex_id(host_child_table_idx,
-      //    host_vertex_idxes.size());
-      const uint32 vertex_new_idx = *(--host_vertex_idxes.end()) + 1;
-      CHECK_EQ(Context::table_id(vertex_new_idx), host_child_table_idx) 
-          << "Table size exceeds limit. vertex_new_id=" << vertex_new_idx;
+      const uint32 vertex_new_idx
+          = Context::make_vertex_id(host_child_table_idx,
+          host_vertex_idxes.size());
       host_vertex_idxes.insert(vertex_new_idx);
-#ifdef DEBUG
-      CHECK(vertex_idx_update.find(vertex_new_idx)
-          == vertex_idx_update.end());
-#endif
-      vertex_idx_update[vertex_idx] = vertex_new_idx;
       
       Vertex* vertex = vertexes_[vertex_idx];
       vertex->set_idx(vertex_new_idx);
@@ -776,63 +673,11 @@ void Tree::MergeTwoVertex(const uint32 host_v_idx, const uint32 guest_v_idx,
 #endif
       vertexes_[vertex_new_idx] = vertex;
       vertexes_.erase(vertex_idx);
-
-      vertex->parent()->set_child_table_idx(host_child_table_idx);
-      if (!vertex->root()) {
-#ifdef DEBUG
-        CHECK(table_idx_governed_vertex_idxes_.find(host_child_table_idx) 
-            != table_idx_governed_vertex_idxes_.end());
-#endif
-        table_idx_governed_vertex_idxes_[host_child_table_idx].insert(
-            vertex->parent()->idx());
-      }
-      uint32 governing_table_idx = vertex->child_table_idx();
-#ifdef DEBUG
-      CHECK(table_idx_governed_vertex_idxes_.find(governing_table_idx) 
-          != table_idx_governed_vertex_idxes_.end());
-#endif
-      // Otherwise, do not need to do this, since the 
-      // governed_vertex_idxes of guest_child_table will be cleared at last
-      if (guest_child_table_idx != governing_table_idx) {
-        table_idx_governed_vertex_idxes_[governing_table_idx].erase(
-            vertex_idx);
-        table_idx_governed_vertex_idxes_[governing_table_idx].insert(
-            vertex_new_idx);
-      }
     }
-    //guest_vertex_idxes.clear();
-    table_idx_vertex_idxes_[guest_child_table_idx].clear();
-
-#ifdef DEBUG
-    CHECK(table_idx_governed_vertex_idxes_.find(guest_child_table_idx) 
-        != table_idx_governed_vertex_idxes_.end());
-#endif
-    table_idx_governed_vertex_idxes_[guest_child_table_idx].clear();
-  } // end of merging table
- 
-  LOG(INFO) << "NEW Merge " << host_v->idx() << " and " << guest_v->idx();
-
-  /// Remove guest_v
-  // Note: do not use host/guest_v_idx, use ->idx(), since their idx might 
-  //   have been changed in the table merging process
-  for (Vertex* guest_child : guest_v->children()) {
-    host_v->add_child(guest_child);
+    guest_vertex_idxes.clear();
+    // TODO governed
+    // TODO
   }
-  guest_v->parent()->remove_child(guest_v);
-  vertexes_.erase(guest_v->idx());
-
-  const uint32 guest_v_table_idx = Context::table_id(guest_v->idx());
-#ifdef DEBUG
-    CHECK(table_idx_vertex_idxes_.find(guest_v_table_idx) 
-        != table_idx_vertex_idxes_.end());
-#endif
-  table_idx_vertex_idxes_[guest_v_table_idx].erase(guest_v->idx());
-  // guest_v's governing table has been changed to host_child_table_idx 
-  // in the table merging process, (if no table merging, then 
-  // host_child_table_idx == guest_*, which is still correct)
-  table_idx_governed_vertex_idxes_[host_child_table_idx].erase(guest_v->idx());
-  // release the memory
-  delete guest_v;
 }
 
 void Tree::AcceptMergeVertexes(
@@ -841,12 +686,36 @@ void Tree::AcceptMergeVertexes(
   CHECK(vertexes_.find(host_v_idx) != vertexes_.end());
   CHECK(vertexes_.find(guest_v_idx) != vertexes_.end());
 #endif
-  /// Record 
-  vertex_merge_records_.push_back(make_pair(host_v_idx, guest_v_idx));
-}
+ 
+  /// Remove guest_v
 
-void Tree::InitMerge() {
- vector<pair<uint32, uint32> >().swap(vertex_merge_records_);
+  uint32 child_idx = Context::make_vertex_id(child_table_idx, size);
+  new_vertex->set_idx(child_idx);
+  table_idx_vertex_idxes_[child_table_idx].insert(child_idx);
+
+  Vertex* parent_vertex = vertexes_[parent_vertex_copy->idx()];
+  /// Add to the tree structure
+  //#ifdef DEBUG
+  //CHECK(vertexes_.find(child_idx) == vertexes_.end());
+  //#endif
+  //vertexes_[child_idx] = new_vertex;
+  //parent_vertex->add_child(new_vertex);
+
+  /// Allocate child table for future children 
+  //table_idx_vertex_size_[child_table_idx]++;
+  //if (new_vertex->depth() < Context::get_int32("max_depth")) {
+  //  AllocateChildTable(child_idx);
+  //}
+
+  /// Update param table
+  new_vertex->UpdateParamTableByInc(new_vertex->n(), new_vertex->s(), 1.0);
+  //parent_vertex->ReadParamTable();
+  //parent_vertex->UpdateParamTable(parent_vertex_copy->n(), parent_vertex->n(),
+  //    parent_vertex_copy->s(), parent_vertex->s());
+  /// Record 
+  vertex_split_records_.push_back(make_pair(parent_vertex->idx(), child_idx));
+
+  return child_idx;
 }
 
 float Tree::ComputeELBO() {

@@ -105,6 +105,23 @@ class Vertex {
     }
     children_.push_back(child);
   }
+  inline void remove_child(Vertex* child) {
+    if (child->left_sibling() != NULL) {
+      child->left_sibling()->set_right_sibling(child->right_sibling());
+    }
+    if (child->right_sibling() != NULL) {
+      child->right_sibling()->set_left_sibling(child->left_sibling());
+    }
+    const int ori_child_size = children_.size();
+    for (int pos = 0; pos < children_.size(); ++pos) {
+      if (children_[pos]->idx() == child->idx()) {
+        children_.erase(children_.begin() + pos);
+        break;
+      }
+    }
+    CHECK_EQ(ori_child_size, children_.size() + 1);
+  }
+
   inline Vertex* parent() const { return parent_; }
   inline void set_parent(Vertex* parent) { parent_ = parent; }
   inline Vertex* left_sibling() const { return left_sibling_; }

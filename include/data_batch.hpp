@@ -21,12 +21,13 @@ class DataBatch {
   inline int size() const { return size_; }
   inline int data_idx_begin() const { return data_idx_begin_; } 
 
- private:
-
   void UpdateSuffStatStructBySplit(
       const vector<pair<uint32, uint32> >& vertex_split_records);
   void UpdateSuffStatStructByMerge(
       const vector<pair<uint32, uint32> >& vertex_merge_records);
+
+ private:
+
 
  private:
   int data_idx_begin_;

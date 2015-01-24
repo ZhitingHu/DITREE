@@ -39,6 +39,9 @@ void Dataset::Init(const string& filename) {
     data_batch_queue_[db_idx] = db_idx;
   }
   std::random_shuffle(data_batch_queue_.begin(), data_batch_queue_.end());
+
+  need_restart_ = false;
+  last_iter_before_merge_ = 0;
 }
 
 void Dataset::ReadData(const string& filename) {
@@ -96,12 +99,26 @@ DataBatch* Dataset::GetNextDataBatch() {
   }
 }
 
+DataBatch* Dataset::GetNextBatchToApplyMerge() {
+  boost::mutex::scoped_lock lock(data_access_mutex);
+  if (iter_for_merge_ < last_iter_before_merge_) {
+    DataBatch* next_batch = data_batches_[data_batch_queue_[iter_for_merge_]];
+    ++iter_for_merge_;
+    return next_batch;
+  } else {
+    return NULL;
+  }
+}
+
 void Dataset::Restart() {
   boost::mutex::scoped_lock lock(data_access_mutex);
-  if (iter_ > 0) {
+  if (need_restart_) {
+    LOG(INFO) << "Restart!!! ";
+    need_restart_ = false;
     // Only one thread on each client will execute this code
     iter_ = 0;
     std::random_shuffle(data_batch_queue_.begin(), data_batch_queue_.end());
+    iter_for_merge_ = 0;
   }
 }
 

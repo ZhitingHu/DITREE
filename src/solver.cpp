@@ -79,10 +79,13 @@ void Solver::Solve(const char* resume_file) {
     test_display_gap_ = loss_table_staleness / param_.test_interval() + 1; 
   }
 
+  CHECK_GT(param_.split_sample_start_iter(), param_.merge_iter());
   //
   for (; epoch_ < param_.max_epoch(); ++epoch_) {
-    LOG(INFO) << "=================================================== epoch " << epoch_;
+    LOG(INFO) << "==================================== epoch " << epoch_ << " " << client_id_ << " " << thread_id_;
+    FinishDataBatchMergeMove();
     train_data_->Restart();
+    petuum::PSTableGroup::GlobalBarrier();
     /// VI
     while (!train_data_->epoch_end()) {
       // Save a snapshot if needed.
@@ -96,15 +99,40 @@ void Solver::Solve(const char* resume_file) {
           && (iter_ > 0 || param_.test_initialization())) {
         Test();
       }
-      
+     
+      if (iter_ == param_.merge_iter()) {
+        train_data_->RecordLastIterBeforeMerge();
+
+        Context::set_phase(Context::Phase::kMerge, thread_id_);
+        LOG(INFO) << "***** Merge " << client_id_ << " " << thread_id_;
+        Merge();
+        LOG(INFO) << "***** Merge Done." << client_id_ << " " << thread_id_;
+
+        petuum::PSTableGroup::GlobalBarrier(); // Need to read struct table, so barrier here
+        tree_->UpdateStructTableAfterMerge();
+        LOG(INFO) << "***** Merge Update STable Done." << client_id_ << " " << thread_id_;
+
+        petuum::PSTableGroup::GlobalBarrier(); // Need to read struct table, so barrier here
+        tree_->UpdateTreeStructAfterMerge();
+        LOG(INFO) << "***** Merge Update Local struc Done."<< client_id_ << " " << thread_id_;
+
+        petuum::PSTableGroup::GlobalBarrier();
+        tree_->ReadParamTable();
+        LOG(INFO) << "***** read param table done. "<< client_id_ << " " << thread_id_;
+        root_->RecursConstructParam();
+        LOG(INFO) << "***** recurs param done. "<< client_id_ << " " << thread_id_;
+
+        Context::set_phase(Context::Phase::kVIAfterMerge, thread_id_); 
+      }
+ 
       // Sample target vertexes to split  
-      //if (iter_ == param_.split_sample_start_iter()) {
-      //  ClearLastSplit();
-      //  LOG(INFO) << "SampleVertexToSplit. ";
-      //  SampleVertexToSplit();
-      //  LOG(INFO) << "SampleVertexToSplit Done.";
-      //  collect_target_data_ = true;
-      //}
+      if (iter_ == param_.split_sample_start_iter()) {
+        ClearLastSplit(); //TODO: clear until epoch finishes
+        LOG(INFO) << "SampleVertexToSplit. ";
+        SampleVertexToSplit();
+        LOG(INFO) << "SampleVertexToSplit Done.";
+        collect_target_data_ = true;
+      }
 
       // Main VI
       Update();
@@ -118,33 +146,37 @@ void Solver::Solve(const char* resume_file) {
 
       ++iter_;
     }
+    train_data_->set_need_restart();
 
-    Merge();
 
-    //if (epoch_ < param_.max_epoch() - 1) {
-    //  /// Split
-    //  petuum::PSTableGroup::GlobalBarrier();
-    //  Context::set_phase(Context::Phase::kSplit, thread_id_);
+    if (epoch_ < param_.max_epoch() - 1) {
+      /// Split
+      Context::set_phase(Context::Phase::kSplit, thread_id_);
 
-    //  LOG(INFO) << "!!!!!!! Split";
-    //  Split();
-    //  LOG(INFO) << "!!!!!!! Split Done.";
+      LOG(INFO) << "!!!!!!! Split " << client_id_ << " " << thread_id_;
+      Split();
+      LOG(INFO) << "!!!!!!! Split Done." << client_id_ << " " << thread_id_;
 
-    //  tree_->UpdateStructTableAfterSplit();
-    //  LOG(INFO) << "!!!!!!! Split Update STable Done.";
+      petuum::PSTableGroup::GlobalBarrier(); // Need to read struct table, so barrier here
+      tree_->UpdateStructTableAfterSplit();
+      LOG(INFO) << "!!!!!!! Split Update STable Done." << client_id_ << " " << thread_id_;
 
-    //  petuum::PSTableGroup::GlobalBarrier();
-    //  tree_->UpdateTreeStructAfterSplit();
-    //  LOG(INFO) << "!!!!!!! Split Update Local struc Done.";
+      petuum::PSTableGroup::GlobalBarrier(); // Need to read struct table, so barrier here
+      tree_->UpdateTreeStructAfterSplit();
+      LOG(INFO) << "!!!!!!! Split Update Local struc Done."<< client_id_ << " " << thread_id_;
 
-    //  tree_->ReadParamTable();
-    //  LOG(INFO) << "!!!!!!! read param table done. ";
-    //  root_->RecursConstructParam();
-    //  LOG(INFO) << "!!!!!!! recurs param done. ";
+      tree_->ReadParamTable();
+      LOG(INFO) << "!!!!!!! read param table done. "<< client_id_ << " " << thread_id_;
+      root_->RecursConstructParam();
+      LOG(INFO) << "!!!!!!! recurs param done. "<< client_id_ << " " << thread_id_;
 
-    //  Context::set_phase(Context::Phase::kVIAfterSplit, thread_id_); 
-    //  petuum::PSTableGroup::GlobalBarrier();
-    //}
+      Context::set_phase(Context::Phase::kVIAfterSplit, thread_id_); 
+    }
+
+    LOG(INFO) << "Tree size: " << tree_->size();
+    for (auto v : tree_->vertexes()) {
+      LOG(INFO) << "idx: " <<v.second->idx();
+    }
 
     /// 
     start_iter = 0;
@@ -307,9 +339,9 @@ void Solver::ClearLastSplit() {
     }
     uint32 parent_vertex_idx = target_data->target_vertex_idx();
     uint32 child_vertex_idx = target_data->child_vertex_idx();
-    tree_->vertex(parent_vertex_idx)->UpdateParamTable(
+    tree_->vertex(parent_vertex_idx)->UpdateParamTableByInc(
         target_data->n_parent(), target_data->s_parent(), -1.0);
-    tree_->vertex(child_vertex_idx)->UpdateParamTable(
+    tree_->vertex(child_vertex_idx)->UpdateParamTableByInc(
         target_data->n_child(), target_data->s_child(), -1.0);
   }
   LOG(INFO) << "Clear last split done.";
@@ -347,13 +379,17 @@ void Solver::CollectTargetData(const UIntFloatMap& log_weights,
 }
 
 void Solver::Split() {
-  tree_->ClearSplitRecords();
+  tree_->InitSplit();
+ 
+  //LOG(FATAL) << "Solver->Split " << vertexes_to_split_.size() << " " << thread_id_ << " " << client_id_;
+
   for (int i = 0; i < vertexes_to_split_.size(); ++i) {
     uint32 v_idx = vertexes_to_split_[i];
     Vertex parent_vertex_copy = (*tree_->vertex(v_idx));
     Vertex* child_vertex = new Vertex();
     TargetDataset* target_data = split_target_data_[i];
 
+    CHECK_GT(target_data->size(), 0);
     LOG(INFO) << "target data size " << target_data->size() << " v=" << v_idx;
 
     // Initialize
@@ -409,7 +445,9 @@ void Solver::RestrictedUpdate(Vertex* parent, Vertex* new_child,
     float log_weight_sum = log(exp(parent_log_weight - max_log_weight)
         + exp(child_log_weight - max_log_weight)) + max_log_weight;
 #ifdef DEBUG
-    CHECK(!isnan(log_weight_sum));
+    CHECK(!isnan(log_weight_sum)) << parent->idx() << " " << client_id_ << " " << thread_id_ 
+        << " " << parent_log_weight << " " << child_log_weight << " " << max_log_weight << " "
+        << parent->beta() << " " << new_child->beta();
     CHECK(!isinf(log_weight_sum));
 #endif
     float d_n_parent = exp(parent_log_weight - log_weight_sum);
@@ -442,7 +480,7 @@ void Solver::RestrictedUpdate(Vertex* parent, Vertex* new_child,
 
   LOG(INFO) << "Compute ELBO";
   float elbo = parent->ComputeELBO() + new_child->ComputeELBO() - h;
-  LOG(INFO) << "res update: " << elbo << " " << parent->ComputeELBO() << " "
+  LOG(ERROR) << "res update: " << elbo << " " << parent->ComputeELBO() << " "
       << new_child->ComputeELBO() << " " << -h;
 
   LOG(INFO) << "Restricted Update Done.";
@@ -467,7 +505,8 @@ void Solver::SplitInit(Vertex* parent, Vertex* new_child,
     float n_whole_data_children = 0;
     for (auto child_vertex: children) {
 #ifdef DEBUG
-      CHECK(n.find(child_vertex->idx()) != n.end()) << " " << child_vertex->idx();
+      CHECK(n.find(child_vertex->idx()) != n.end()) 
+          << " " << child_vertex->idx() << " " << n.size();
 #endif
       n_target_data_children += n.find(child_vertex->idx())->second;
       n_whole_data_children += child_vertex->n();
@@ -480,14 +519,20 @@ void Solver::SplitInit(Vertex* parent, Vertex* new_child,
     for (auto w : ave_children_mean) {
       ave_children_mean_norm += w * w;
     }
+#ifdef DEBUG
+    CHECK_GT(ave_children_mean_norm, 0);
+#endif
     ave_children_mean_norm = sqrt(ave_children_mean_norm);
     // Compute new child's mean
     float new_child_mean_norm = 0;
     for (int w_idx = 0; w_idx < ave_children_mean.size(); ++w_idx) {
       ave_children_mean[w_idx] /= ave_children_mean_norm;
       new_child_mean[w_idx] = parent_mean[w_idx] - ave_children_mean[w_idx];
-      new_child_mean_norm += new_child_mean[w_idx];
+      new_child_mean_norm += new_child_mean[w_idx] * new_child_mean[w_idx];
     }
+#ifdef DEBUG
+    CHECK_GT(new_child_mean_norm, 0);
+#endif
     new_child_mean_norm = sqrt(new_child_mean_norm);
     for (int w_idx = 0; w_idx < new_child_mean.size(); ++w_idx) {
       new_child_mean[w_idx] /= new_child_mean_norm;
@@ -535,6 +580,7 @@ void Solver::SplitInit(Vertex* parent, Vertex* new_child,
 }
 
 void Solver::Merge() {
+  tree_->InitMerge();
   /// Sample
   vertex_pairs_to_merge_.clear();
   LOG(INFO) << "SampleVertexPairsToMerge ";
@@ -569,6 +615,8 @@ void Solver::Merge() {
     // if ori_elbo < new_elbo, then ELBO is garuanteed to increase after 
     //  merging, so just accept it
     if (ori_elbo < new_elbo) {
+      LOG(ERROR) << "Accept Merge " << vertex_pair.first << " " 
+          << vertex_pair.second << " cid=" << client_id_ << " tid=" << thread_id_;
       tree_->AcceptMergeVertexes(vertex_pair.first, vertex_pair.second);
 
       merged_vertex_idxes.insert(vertex_pair.first);
@@ -576,6 +624,16 @@ void Solver::Merge() {
     }
 
     LOG(INFO) << "elbo: " << ori_elbo << " " << new_elbo;
+  }
+}
+
+void Solver::FinishDataBatchMergeMove() {
+  while(true) {
+    DataBatch* data_batch = train_data_->GetNextBatchToApplyMerge();
+    if (data_batch == NULL) {
+      break;
+    }
+    data_batch->UpdateSuffStatStructByMerge(tree_->vertex_merge_records());
   }
 }
 

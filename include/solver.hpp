@@ -36,6 +36,7 @@ class Solver {
   
   // Merge move
   void Merge();
+  void FinishDataBatchMergeMove();
 
   //TODO
   void Snapshot() {}

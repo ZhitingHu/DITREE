@@ -64,10 +64,12 @@ message SolverParameter {
   optional int32 snapshot = 7 [default = 0]; // The snapshot interval
   optional bool snapshot_after_train = 8 [default = true]; 
   optional string snapshot_prefix = 9; // The prefix for the snapshot.
-  // Split merge moves
+  // Split moves
   optional int32 split_sample_start_iter = 10; // When to start sample
   optional float split_target_data_threshold = 11;
   optional int32 split_max_target_data_size = 12;
+  // Merge moves
+  optional int32 merge_iter = 13; // When to merge, < split_sample_start_iter
 }
 
 // A message that stores the solver snapshots

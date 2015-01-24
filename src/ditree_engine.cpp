@@ -6,7 +6,8 @@
 
 namespace ditree {
 
-DITreeEngine::DITreeEngine(const SolverParameter& param) {
+DITreeEngine::DITreeEngine(const SolverParameter& param)
+    : thread_counter_(0) {
   solver_param_ = param;
 }
 
@@ -76,7 +77,7 @@ void DITreeEngine::CreateTables() {
   table_config.table_info.row_type = ditree::kFloatDenseRowDtypeID;
   table_config.table_info.table_staleness = param_table_staleness;
   table_config.table_info.row_capacity = param_row_length;
-  table_config.process_cache_capacity = max_num_vertexes; //TODO
+  table_config.process_cache_capacity = max_num_vertexes + 5; //TODO
   table_config.table_info.dense_row_oplog_capacity = param_row_length;
   table_config.oplog_capacity = table_config.process_cache_capacity;
   petuum::PSTableGroup::CreateTable(kParamTableID, table_config);
@@ -87,13 +88,13 @@ void DITreeEngine::CreateTables() {
       = (max_num_tables + tot_num_threads - 1) / tot_num_threads 
       * max_num_split_per_table * kNumStructTableRecordCols + 1;
     // the 1st row has length of tot_num_threads
-  struct_row_length = max(struct_row_length, tot_num_threads);
+  struct_row_length = max(struct_row_length, tot_num_threads + 1);
   Context::set_struct_table_row_length(struct_row_length);
   LOG(INFO) << "Struct table row capacity " << struct_row_length;
   table_config.table_info.row_type = ditree::kIntDenseRowDtypeID;
   table_config.table_info.table_staleness = 0; 
   table_config.table_info.row_capacity = struct_row_length;
-  table_config.process_cache_capacity = tot_num_threads;
+  table_config.process_cache_capacity = tot_num_threads + 100;
   table_config.table_info.dense_row_oplog_capacity = 10;
   table_config.oplog_capacity = table_config.process_cache_capacity;
   petuum::PSTableGroup::CreateTable(kStructTableID, table_config);
@@ -118,7 +119,7 @@ void DITreeEngine::CreateTables() {
   table_config.table_info.row_type = ditree::kFloatDenseRowDtypeID;
   table_config.table_info.table_staleness = loss_table_staleness;
   table_config.table_info.row_capacity = kNumLossTableCols;
-  table_config.process_cache_capacity = num_rows_train_loss_table;
+  table_config.process_cache_capacity = num_rows_train_loss_table + 5;
   table_config.table_info.dense_row_oplog_capacity = 10;
   table_config.oplog_capacity = table_config.process_cache_capacity;
   petuum::PSTableGroup::CreateTable(kTrainLossTableID, table_config);
@@ -129,7 +130,7 @@ void DITreeEngine::CreateTables() {
       / solver_param_.test_interval() + 1;
   CHECK_GT(num_rows_test_loss_table, 0);
   table_config.table_info.row_capacity = kNumLossTableCols;
-  table_config.process_cache_capacity = num_rows_test_loss_table;
+  table_config.process_cache_capacity = num_rows_test_loss_table + 5;
   table_config.oplog_capacity = table_config.process_cache_capacity;
   petuum::PSTableGroup::CreateTable(kTestLossTableID, table_config);
   LOG(INFO) << "Created test loss table " << kTestLossTableID;
@@ -158,6 +159,8 @@ void DITreeEngine::Start() {
   //const string& tree_outputs_prefix = Context::get_string("tree_outputs");
 
   Solver* solver = new Solver(solver_param_, thread_id, &train_data_); 
+
+  LOG(INFO) << "Start " << client_id << " " << thread_id << " " << thread_counter_; 
 
   if (snapshot_path.size()) {
     if (client_id == 0 && thread_id == 0) {

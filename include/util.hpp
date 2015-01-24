@@ -22,6 +22,14 @@ class Triple {
   float w_;
 };
 
+inline void PrintFloatVec(const FloatVec& v) {
+  ostringstream oss;
+  for (const auto v_ele : v) {
+    oss << v_ele << " ";
+  }
+  oss << "\n";
+  LOG(INFO) << oss.str();
+}
 inline void PrintUIntFloatMap(const UIntFloatMap& v) {
   ostringstream oss;
   BOOST_FOREACH(const UIntFloatPair& v_ele, v) {

@@ -7,16 +7,18 @@ namespace ditree {
 
 void DataBatch::UpdateSuffStatStruct(const Tree* tree,
     const Context::Phase phase) {
-  if (phase == Context::Phase::kVIAfterSplit) {
-    UpdateSuffStatStructBySplit(tree->vertex_split_records());
-    UpdateSuffStatStructByMerge(tree->vertex_merge_records());
-  } else if (phase == Context::Phase::kVIAfterMerge) {
-    UpdateSuffStatStructByMerge(tree->vertex_merge_records());
-    UpdateSuffStatStructBySplit(tree->vertex_split_records());
-  } else {
-    LOG(FATAL) << "Phase must be kVIAfterSplit or kVIAfterMerge != " 
-        << phase;
-  }
+  //if (phase == Context::Phase::kVIAfterSplit) {
+  //  UpdateSuffStatStructByMerge(tree->vertex_merge_records());
+  //  UpdateSuffStatStructBySplit(tree->vertex_split_records());
+  //} else if (phase == Context::Phase::kVIAfterMerge) {
+  //  UpdateSuffStatStructBySplit(tree->vertex_split_records());
+  //  UpdateSuffStatStructByMerge(tree->vertex_merge_records());
+  //} else {
+  //  LOG(FATAL) << "Phase must be kVIAfterSplit or kVIAfterMerge != " 
+  //      << phase;
+  //}
+  UpdateSuffStatStructBySplit(tree->vertex_split_records());
+  UpdateSuffStatStructByMerge(tree->vertex_merge_records());
 }
 
 void DataBatch::InitSuffStatStruct(const Tree* tree, 
@@ -45,7 +47,8 @@ void DataBatch::UpdateSuffStatStructBySplit(
     const uint32 child_idx = rec.second;
 #ifdef DEBUG
     CHECK(n_.find(parent_idx) != n_.end());
-    CHECK(n_.find(child_idx) == n_.end());
+    CHECK(n_.find(child_idx) == n_.end())
+        << "Child_idx " << child_idx << " Already contained.";
     CHECK(s_.find(parent_idx) != s_.end());
     CHECK(s_.find(child_idx) == s_.end());
 #endif

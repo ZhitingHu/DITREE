@@ -77,16 +77,16 @@ void Vertex::ConstructParam() {
   var_n_sum_for_parent_ = children_n_sum + n_;
 
   // sigma
-  LOG(INFO) << idx_ << " sigma_[0] " << sigma_[0] << " " 
-      << (sigma_fixed_part_[0] + var_n_sum_for_parent_) << " " 
-      << children_n_sum << " " << n_;
+  //LOG(INFO) << idx_ << " sigma_[0] " << sigma_[0] << " " 
+  //    << (sigma_fixed_part_[0] + var_n_sum_for_parent_) << " " 
+  //    << children_n_sum << " " << n_;
 
   sigma_[0] = sigma_fixed_part_[0] + var_n_sum_for_parent_;
   var_n_sum_for_sibling_ = var_n_sum_for_parent_
       + (right_sibling_ ? right_sibling_->var_n_sum_for_sibling() : 0);
 
-  LOG(INFO) << idx_ << " sigma_[1] " << sigma_[1] << " " 
-      << (sigma_fixed_part_[1] + var_n_sum_for_sibling_ - var_n_sum_for_parent_);
+  //LOG(INFO) << idx_ << " sigma_[1] " << sigma_[1] << " " 
+  //    << (sigma_fixed_part_[1] + var_n_sum_for_sibling_ - var_n_sum_for_parent_);
 
   sigma_[1] = sigma_fixed_part_[1] 
       + (right_sibling_ ? right_sibling_->var_n_sum_for_sibling() : 0);
@@ -94,9 +94,6 @@ void Vertex::ConstructParam() {
   // mean
   const FloatVec mean_prev(mean_);
   std::fill(mean_.begin(), mean_.end(), 0); 
-
-  LOG(INFO) << "here";
-
   for (int c_idx = 0; c_idx < children_.size(); ++c_idx) {
     if (!children_[c_idx]->new_born()) { 
       // child's history
@@ -118,8 +115,6 @@ void Vertex::ConstructParam() {
     }
   } // end of children
 
-  LOG(INFO) << "here .1";
-
   const FloatVec& parent_mean = parent_->mean();
   if (!new_born_) {
     for (int i = 0; i < mean_.size(); ++i) {
@@ -131,8 +126,6 @@ void Vertex::ConstructParam() {
       mean_[i] += beta_ * s_[i] + kappa_0_ * kappa_1_ * parent_mean[i];
     }
   }
-
-  LOG(INFO) << "here 2";
 
   // kappa
   kappa_ = 0;
@@ -260,7 +253,7 @@ void Vertex::ReadParamTable() {
   }
 
   // TODO
-  LOG(INFO) << "Read PS Table - thread " << idx_;
+  LOG(INFO) << "Read PS Table - vertex " << idx_;
   ostringstream oss;
   oss << "n_ " << n_ << "\n";
   for (int i = 0; i < s_.size(); ++i) {

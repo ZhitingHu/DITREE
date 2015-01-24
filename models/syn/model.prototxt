@@ -10,10 +10,10 @@ vertexes {
   child_indexes: 1
   child_indexes: 2
   child_indexes: 3
-  child_indexes: 4
 }
 vertexes {
   index: 1
+  child_indexes: 16777216
 }
 vertexes {
   index: 2
@@ -21,6 +21,9 @@ vertexes {
 vertexes {
   index: 3
 }
+#vertexes {
+#  index: 4
+#}
 vertexes {
-  index: 4
+  index: 16777216
 }
