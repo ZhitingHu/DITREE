@@ -60,8 +60,8 @@ enum RowTypes {
 };
 enum TableIds {
   kParamTableID = 0,
+  kTempParamTableID,
   kStructTableID,
-  kParamTableMetaTableID,
   kTrainLossTableID,
   kTestLossTableID
 };

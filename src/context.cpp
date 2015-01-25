@@ -23,7 +23,7 @@ Context::Context() {
 
 void Context::Init() {
   num_app_threads_ = get_int32("num_app_threads");
-  phases_ = new Phase[num_app_threads_];
+  phases_.resize(num_app_threads_);
   for (int t_idx = 0; t_idx < num_app_threads_; ++t_idx) {
     set_phase(Context::Phase::kVIAfterSplit, t_idx);
   }
@@ -32,7 +32,10 @@ void Context::Init() {
   num_row_id_bits_ = kNumIntBits - num_table_id_bits_;
 
   vocab_size_ = get_int32("vocab_size");
-
+  max_num_split_per_table_ = get_int32("max_split_per_table");
+  //num_thread_ready_to_restart_ = 0;
+  spanning_barrier_ = new SpinningBarrier(num_app_threads_);
+ 
   int rand_seed = get_int32("random_seed");
   if (rand_seed >= 0) {
     random_generator_ = new Random(rand_seed);

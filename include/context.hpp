@@ -3,6 +3,7 @@
 
 #include "common.hpp"
 #include "random.hpp"
+#include "thread_barrier.hpp"
 #include <unordered_map>
 #include <boost/shared_ptr.hpp>
 #include <boost/shared_ptr.hpp>
@@ -49,27 +50,39 @@ class Context {
 
   enum Phase { kInit, kSplit, kMerge, kVIAfterSplit, kVIAfterMerge };
   inline static Phase phase(const int thread_id) { 
-#ifdef DEBUG
-    CHECK(Get().phases_ != NULL);
-#endif
     return Get().phases_[thread_id]; 
   }
   inline static void set_phase(Phase phase, const int thread_id) {
-#ifdef DEBUG
-    CHECK(Get().phases_ != NULL);
-#endif
     Get().phases_[thread_id] = phase; 
   }
-  //inline static Phase phase() {
-  //  return Get().phase_;
-  //}
-  //inline static void set_phase(Phase phase) { Get().phase_ = phase; }
 
   inline static int num_app_threads() {
     return Get().num_app_threads_; 
   }
   inline static int vocab_size() {
     return Get().vocab_size_;
+  }
+  inline static int max_num_split_per_table() {
+    return Get().max_num_split_per_table_;
+  }
+
+  // For sync
+  //inline static void IncRestartThreadCounter() {
+  //  Get().num_thread_ready_to_restart_++;
+  //#ifdef DEBUG
+  //  CHECK_LE(Get().num_thread_ready_to_restart_, Get().num_app_threads_);
+  //#endif
+  //}
+  //inline static void ResetRestartThreadCounter() {
+  //  Get().num_thread_ready_to_restart_ = 0;
+  //}
+  //inline static void WaitToRestart() {
+  //  while(Get().num_thread_ready_to_restart_ 
+  //      < Get().num_app_threads_) { }
+  //}
+ 
+  inline static void Wait() {
+    Get().spanning_barrier_->Wait();
   }
 
   inline static float rand() {
@@ -86,19 +99,19 @@ class Context {
   inline static petuum::Table<float>* param_table() {
     return &(Get().param_table_);
   }
+  inline static petuum::Table<float>* temp_param_table() {
+    return &(Get().temp_param_table_);
+  }
   inline static petuum::Table<int>* struct_table() {
     return &(Get().struct_table_);
-  }
-  inline static petuum::Table<int>* param_table_meta_table() {
-    return &(Get().param_table_meta_table_);
   }
   inline static void SetTables() {
     Get().param_table_ 
         = petuum::PSTableGroup::GetTableOrDie<float>(kParamTableID);
+    Get().temp_param_table_ 
+        = petuum::PSTableGroup::GetTableOrDie<float>(kTempParamTableID);
     Get().struct_table_
         = petuum::PSTableGroup::GetTableOrDie<int>(kStructTableID);
-    Get().param_table_meta_table_
-        = petuum::PSTableGroup::GetTableOrDie<int>(kParamTableMetaTableID);
   }
   inline static int struct_table_row_length() {
     return Get().struct_table_row_length_;
@@ -127,18 +140,22 @@ class Context {
   // Underlying data structure
   std::unordered_map<std::string, std::string> ctx_;
 
-  Phase* phases_;
+  vector<Phase> phases_;
   int num_app_threads_;
   int num_table_id_bits_;
   int num_row_id_bits_;
   int vocab_size_;
+  int max_num_split_per_table_;
 
   Random* random_generator_;
 
   petuum::Table<float> param_table_;
+  petuum::Table<float> temp_param_table_;
   petuum::Table<int> struct_table_;
-  petuum::Table<int> param_table_meta_table_;
   int struct_table_row_length_;
+
+  // for synchronization
+  SpinningBarrier* spanning_barrier_;
 };
 
 }   // namespace ditree

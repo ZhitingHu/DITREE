@@ -23,9 +23,10 @@ model_filename="${app_dir}/models/syn/model.prototxt"
 #params_filename="${app_dir}/"
 
 # Petuum Parameters
-num_app_threads=1
-param_table_staleness=0
-loss_table_staleness=0
+num_app_threads=6
+param_table_staleness=2
+loss_table_staleness=2
+num_clocks_per_epoch=310
 num_comm_channels_per_client=1
 
 # PS Table Organization Paremeters
@@ -34,6 +35,7 @@ max_num_children_per_vertex=20
 max_num_vertexes=10000
 max_size_per_table=10
 max_split_per_table=1
+max_merge_per_table=2
 num_table_id_bits=8
 
 num_history=1
@@ -42,7 +44,7 @@ num_history=1
 data="${app_dir}/data/syn/docs_train.bin.shuffled"
 mean="${app_dir}/data/syn/docs_train.bin_mean.txt"
 vocab_size=8
-batch_size=100
+batch_size=10
 
 ##=====================================
 
@@ -90,6 +92,7 @@ for ip in $unique_host_list; do
       --client_id ${client_id} \
       --num_clients $num_unique_hosts \
       --num_app_threads $num_app_threads \
+      --num_clocks_per_epoch ${num_clocks_per_epoch} \
       --param_table_staleness $param_table_staleness \
       --loss_table_staleness $loss_table_staleness \
       --num_comm_channels_per_client $num_comm_channels_per_client \
@@ -103,6 +106,7 @@ for ip in $unique_host_list; do
       --max_num_vertexes ${max_num_vertexes} \      
       --max_size_per_table ${max_size_per_table} \
       --max_split_per_table ${max_split_per_table} \ 
+      --max_merge_per_table ${max_merge_per_table} \
       --num_table_id_bits $num_table_id_bits \
       --history $num_history \
       --data $data \

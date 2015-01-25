@@ -7,7 +7,7 @@ snapshot: 100
 snapshot_after_train: true
 snapshot_prefix: "models/syn/ditree_train"
 #
-split_sample_start_iter: 8
+split_sample_start_iter: 6
 split_target_data_threshold: 0.5
 split_max_target_data_size: 100
 #

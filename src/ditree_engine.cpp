@@ -39,7 +39,7 @@ void DITreeEngine::Init() {
   }
   //TODO snapshot / resume
   // ...
-  // param_table, struct_table, param_table_meta_table, loss_table
+  // param_table, struct_table, temp_param_table, loss_tables
   table_group_config.num_tables = 5;
   petuum::PSTableGroup::RegisterRow<petuum::DenseRow<float> >
     (kFloatDenseRowDtypeID);
@@ -77,37 +77,40 @@ void DITreeEngine::CreateTables() {
   table_config.table_info.row_type = ditree::kFloatDenseRowDtypeID;
   table_config.table_info.table_staleness = param_table_staleness;
   table_config.table_info.row_capacity = param_row_length;
-  table_config.process_cache_capacity = max_num_vertexes + 5; //TODO
+  table_config.process_cache_capacity = max_num_vertexes + 5;
   table_config.table_info.dense_row_oplog_capacity = param_row_length;
   table_config.oplog_capacity = table_config.process_cache_capacity;
   petuum::PSTableGroup::CreateTable(kParamTableID, table_config);
   LOG(INFO) << "Created param table " << kParamTableID;
+  // temp param table
+  int temp_param_table_row_num = max_num_split_per_table * max_num_tables;
+  table_config.table_info.table_staleness = 0;
+  table_config.process_cache_capacity = temp_param_table_row_num + 5;
+  table_config.oplog_capacity = table_config.process_cache_capacity;
+  petuum::PSTableGroup::CreateTable(kTempParamTableID, table_config);
+  LOG(INFO) << "Created temp param table " << kTempParamTableID;
 
   // struct table
   int struct_row_length
       = (max_num_tables + tot_num_threads - 1) / tot_num_threads 
       * max_num_split_per_table * kNumStructTableRecordCols + 1;
-    // the 1st row has length of tot_num_threads
-  struct_row_length = max(struct_row_length, tot_num_threads + 1);
+  // the 1st row has length of tot_num_threads
+  struct_row_length = max(struct_row_length, tot_num_threads);
+  //int struct_row_length
+  //    = max(max_num_split_per_table * kNumStructTableRecordCols);
+  //  // the 1st row has length of tot_num_threads
+  //struct_row_length = max(struct_row_length, max_num_tables);
   Context::set_struct_table_row_length(struct_row_length);
   LOG(INFO) << "Struct table row capacity " << struct_row_length;
   table_config.table_info.row_type = ditree::kIntDenseRowDtypeID;
   table_config.table_info.table_staleness = 0; 
   table_config.table_info.row_capacity = struct_row_length;
-  table_config.process_cache_capacity = tot_num_threads + 100;
+  table_config.process_cache_capacity = tot_num_threads + 10;
+  //table_config.process_cache_capacity = max_num_tables + 10;
   table_config.table_info.dense_row_oplog_capacity = 10;
   table_config.oplog_capacity = table_config.process_cache_capacity;
   petuum::PSTableGroup::CreateTable(kStructTableID, table_config);
   LOG(INFO) << "Created struct table " << kStructTableID;
-  // param table meta table
-  table_config.table_info.row_type = ditree::kIntDenseRowDtypeID;
-  table_config.table_info.table_staleness = 0;
-  table_config.table_info.row_capacity = 10; //TODO
-  table_config.process_cache_capacity = max_num_vertexes; //TODO
-  table_config.table_info.dense_row_oplog_capacity = 10;
-  table_config.oplog_capacity = table_config.process_cache_capacity;
-  petuum::PSTableGroup::CreateTable(kParamTableMetaTableID, table_config);
-  LOG(INFO) << "Created param table meta table " << kParamTableMetaTableID;
   // train loss table
   const int max_iter_per_epoch 
       = (train_data_.batch_num() + num_threads - 1) / num_threads
@@ -181,10 +184,10 @@ void DITreeEngine::Start() {
   
   petuum::PSTableGroup::GlobalBarrier();
   if (client_id == 0 && thread_id == 0) {
-    LOG(INFO) << "Output training results.";
+    //LOG(INFO) << "Output training results.";
     //solver->PrintNetOutputs(net_outputs_prefix + ".netoutputs");
   }
-  petuum::PSTableGroup::GlobalBarrier();
+  //petuum::PSTableGroup::GlobalBarrier();
 
   petuum::PSTableGroup::DeregisterThread();
 }

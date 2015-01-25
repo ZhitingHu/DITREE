@@ -2,12 +2,11 @@ syntax = "proto2";
 
 package ditree;
 
+// Next: 18
 message VertexParameter {
   optional int32 index = 1;
+  optional int32 table_index = 17;
   optional bool root = 2 [default = false];
-  //optional int32 parent_index = 2;
-  //optional int32 left_sibling_index = 3;
-  //optional int32 right_sibling_index = 4;
   repeated int32 child_indexes = 3;
   optional int32 child_table_idx = 4;
   repeated float mean = 5;
@@ -49,6 +48,7 @@ enum Phase {
   kVIAfterMerge = 4;
 }
 
+// Next: 13
 message SolverParameter {
   // The number of iterations for test.
   optional int32 test_iter = 1;

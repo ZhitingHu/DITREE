@@ -27,6 +27,8 @@ DEFINE_int32(row_oplog_type, petuum::RowOpLogType::kDenseRowOpLog,
     "row oplog type");
 DEFINE_bool(oplog_dense_serialized, true, 
     "True to not squeeze out the 0's in dense oplog.");
+DEFINE_int32(num_clocks_per_epoch, 10, 
+    "Number of clocks per thread per epoch");
 
 // PS Table Organization Paremeters
 DEFINE_int32(max_depth, 10,

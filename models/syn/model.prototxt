@@ -6,6 +6,7 @@ kappa_1: 10
 kappa_2: 1
 vertexes {
   index: 0
+  table_index: 0
   root: true
   child_indexes: 1
   child_indexes: 2
@@ -13,17 +14,23 @@ vertexes {
 }
 vertexes {
   index: 1
-  child_indexes: 16777216
+  table_index: 0
+  child_indexes: 4
+  child_indexes: 5
 }
 vertexes {
   index: 2
+  table_index: 0
 }
 vertexes {
   index: 3
+  table_index: 0
 }
-#vertexes {
-#  index: 4
-#}
 vertexes {
-  index: 16777216
+  index: 4
+  table_index: 1
+}
+vertexes {
+  index: 5
+  table_index: 1
 }

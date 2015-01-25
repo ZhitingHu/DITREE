@@ -37,6 +37,8 @@ class Vertex {
 
   void UpdateParamLocal(const float n_z_new, const float n_z_old,
     const UIntFloatMap& s_z_new, const UIntFloatMap& s_z_old);
+  
+  void PrintChildrenList(ostringstream& oss) const;
 
   inline FloatVec& mutable_mean() { return mean_; }
   inline const FloatVec& mean() const { return mean_; }
@@ -78,10 +80,15 @@ class Vertex {
   }
   inline float var_z_prior() const { return var_z_prior_; }
 
-  inline int idx() const { return idx_; }
+  inline uint32 idx() const { return idx_; }
   inline void set_idx(const uint32 idx) { idx_ = idx; }
+  inline uint32 table_idx() const { return table_idx_; }
+  inline void set_table_idx(const uint32 table_idx) { table_idx_ = table_idx; }
+
   inline float n() const { return n_; }
   inline float& mutable_n() { return n_; }
+  inline float temp_n() const { return temp_n_; }
+  inline float& mutable_temp_n() { return temp_n_; }
   inline const FloatVec& s() const { return s_; }
   inline FloatVec& mutable_s() { return s_; }
 
@@ -155,8 +162,8 @@ class Vertex {
   //VertexParameter vertex_param_;
 
   /// tree structure
-  uint32 idx_;
-  uint32 governing_table_idx_;
+  uint32 idx_; // idx_ will not change over life
+  uint32 table_idx_; // table_idx_ can be changed, e.g., by table merging 
   Vertex* parent_;
   Vertex* left_sibling_;
   Vertex* right_sibling_;
@@ -195,6 +202,9 @@ class Vertex {
   float n_; // \sum_{n} q(z_n = z)
   FloatVec s_; // \sum_{n} q(z_n = z) * x_n
   //float h_; // \sum_{n} q(z_n = z) * log q(z_n = z)
+
+  // a temp variable used in split
+  float temp_n_;
 
   /// (local) VI
   // \sum_{z' <= z} E[ log (1 - \nu_z') ] + E[ log \phi_z' ]

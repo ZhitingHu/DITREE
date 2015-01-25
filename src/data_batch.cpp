@@ -18,7 +18,9 @@ void DataBatch::UpdateSuffStatStruct(const Tree* tree,
   //      << phase;
   //}
   UpdateSuffStatStructBySplit(tree->vertex_split_records());
-  UpdateSuffStatStructByMerge(tree->vertex_merge_records());
+  if (phase == Context::Phase::kVIAfterMerge) {
+    UpdateSuffStatStructByMerge(tree->vertex_merge_records());
+  }
 }
 
 void DataBatch::InitSuffStatStruct(const Tree* tree, 
@@ -48,7 +50,8 @@ void DataBatch::UpdateSuffStatStructBySplit(
 #ifdef DEBUG
     CHECK(n_.find(parent_idx) != n_.end());
     CHECK(n_.find(child_idx) == n_.end())
-        << "Child_idx " << child_idx << " Already contained.";
+        << "child_idx " << child_idx << " already exists. n_.size="
+        << n_.size();
     CHECK(s_.find(parent_idx) != s_.end());
     CHECK(s_.find(child_idx) == s_.end());
 #endif
@@ -59,13 +62,17 @@ void DataBatch::UpdateSuffStatStructBySplit(
 }
 
 void DataBatch::UpdateSuffStatStructByMerge(
-    const vector<pair<uint32, uint32> >& vertex_merge_records) { 
+    const vector<pair<uint32, uint32> >& vertex_merge_records) {
+  
+  //LOG(ERROR) << "Merging struct " << data_idx_begin_;
+ 
   for (const auto& rec : vertex_merge_records) {
     const uint32 merging_idx = rec.first;
     const uint32 merged_idx = rec.second;
 #ifdef DEBUG
     CHECK(n_.find(merging_idx) != n_.end());
-    CHECK(n_.find(merged_idx) != n_.end());
+    CHECK(n_.find(merged_idx) != n_.end()) 
+        << "merged_idx=" << merged_idx << ", n_.size=" << n_.size();
     CHECK(s_.find(merging_idx) != s_.end());
     CHECK(s_.find(merged_idx) != s_.end());
 #endif

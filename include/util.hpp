@@ -105,6 +105,14 @@ inline float DotProdFloatVectors(const FloatVec& X, const FloatVec& Y) {
   return prod;
 }
 
+template <class I, class T>
+void FreeMap(std::map<I, T*>& delete_map) {
+  for (auto& ele : delete_map) {
+    delete ele.second;
+  }
+  delete_map.clear();
+}
+
 // Fast approximate log modified Bessel function of the first kind
 inline double fastLogBesselI(double d, double kappa) {
   static const double pi = atan(1.)*4;

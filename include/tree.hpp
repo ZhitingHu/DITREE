@@ -29,7 +29,7 @@ class Tree {
 
   void SampleVertexToSplit(vector<uint32>& vertex_to_split);
   // Return idx of the new_vertex
-  uint32 AcceptSplitVertex(Vertex* new_vertex, const Vertex* parent_vertex_copy);
+  void AcceptSplitVertex(Vertex* new_vertex, const Vertex* parent_vertex_copy);
   void UpdateTreeStructAfterSplit();
   void UpdateStructTableAfterSplit();
   void InitSplit();
@@ -43,13 +43,16 @@ class Tree {
 
   float ComputeELBO();
 
+  void PrintTreeStruct();
+
   // number of nodes
   inline int size() { return vertexes_.size(); }
   inline Vertex* root() { return root_; }
 
   inline Vertex* vertex(uint32 idx) {
 #ifdef DEBUG
-    CHECK(vertexes_.find(idx) != vertexes_.end());
+    CHECK(vertexes_.find(idx) != vertexes_.end())
+        << "idx=" << idx;
 #endif
     return vertexes_[idx];
   }
@@ -76,6 +79,8 @@ class Tree {
   //    IdxCntPair& child_table);
   void AllocateChildTable(const uint32 table_idx);
 
+  uint32 AllocateVertexIdx();
+
  private:
   TreeParameter param_;
 
@@ -83,6 +88,10 @@ class Tree {
   // pseudo parent of root node, with fixed params
   Vertex* root_parent_;
   map<uint32, Vertex*> vertexes_;
+
+  // vertex idxes that can be assigned to new vertexes
+  set<uint32> available_vertex_idxes_;
+  uint32 cur_max_vertex_idx_;
 
   /// The only garuantee of table organization is that all children of 
   /// a vertex is in the same table
@@ -107,6 +116,8 @@ class Tree {
   //// 
   //static const uint32 kTempParentTableIdx;
 
+  // table_idx => num of split records
+  map<uint32, uint32> table_idx_num_split_records_;
   // parent_idx => <child_idx, weight for child>
   vector<pair<uint32, uint32> > vertex_split_records_;
   // <vertex_idx_remained, vertex_idx_removed>
@@ -116,7 +127,14 @@ class Tree {
   int thread_id_;
   int global_worker_id_;
   int tot_num_threads_;
-
+ 
+  struct SortByFirstOfPair {
+    bool operator() (const pair<uint32, uint32>& lhs,
+        const pair<uint32, uint32>& rhs) {
+      return (lhs.first < rhs.first)
+          || (lhs.first == rhs.first && lhs.second < rhs.second);
+    }
+  };
   struct SortBySecondOfPair {
     bool operator() (const pair<uint32, uint32>& lhs,
         const pair<uint32, uint32>& rhs) {

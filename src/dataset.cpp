@@ -42,6 +42,7 @@ void Dataset::Init(const string& filename) {
 
   need_restart_ = false;
   last_iter_before_merge_ = 0;
+  iter_for_merge_ = 0;
 }
 
 void Dataset::ReadData(const string& filename) {
@@ -101,6 +102,10 @@ DataBatch* Dataset::GetNextDataBatch() {
 
 DataBatch* Dataset::GetNextBatchToApplyMerge() {
   boost::mutex::scoped_lock lock(data_access_mutex);
+
+  //LOG(ERROR) << "iter_for_merge_ " << iter_for_merge_ 
+  //    << " " << last_iter_before_merge_;
+
   if (iter_for_merge_ < last_iter_before_merge_) {
     DataBatch* next_batch = data_batches_[data_batch_queue_[iter_for_merge_]];
     ++iter_for_merge_;

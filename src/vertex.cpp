@@ -11,6 +11,7 @@ namespace ditree {
 Vertex::Vertex(const VertexParameter& param, const TreeParameter& tree_param) {
   Init();
   idx_ = param.index();
+  table_idx_ = param.table_index();
 #ifdef DEBUG
   CHECK_GT(Context::vocab_size(), 0);
 #endif
@@ -136,15 +137,18 @@ void Vertex::ConstructParam() {
 #ifdef DEBUG
   CHECK_GE(kappa_, kFloatEpsilon);
 #endif
-  ostringstream oss;
-  oss << "mean of " << idx_ << ": ";
   for (int i = 0; i < mean_.size(); ++i) {
     mean_[i] /= kappa_;
-    oss << mean_[i] << " ";
   }
-  oss << std::endl;
-  LOG(INFO) << oss.str();
-  LOG(INFO) << "kappa_ = " << kappa_;
+
+  //ostringstream oss;
+  //oss << "mean of " << idx_ << ": ";
+  //for (int i = 0; i < mean_.size(); ++i) {
+  //  oss << mean_[i] << " ";
+  //}
+  //oss << std::endl;
+  //LOG(INFO) << oss.str();
+  //LOG(INFO) << "kappa_ = " << kappa_;
 }
 
 void Vertex::InitParam(const float n_init, const FloatVec& s_init) {
@@ -253,14 +257,14 @@ void Vertex::ReadParamTable() {
   }
 
   // TODO
-  LOG(INFO) << "Read PS Table - vertex " << idx_;
-  ostringstream oss;
-  oss << "n_ " << n_ << "\n";
-  for (int i = 0; i < s_.size(); ++i) {
-    oss << s_[i] << " ";
-  }
-  oss << "\n";
-  LOG(INFO) << oss.str();
+  //LOG(INFO) << "Read PS Table - vertex " << idx_;
+  //ostringstream oss;
+  //oss << "n_ " << n_ << "\n";
+  //for (int i = 0; i < s_.size(); ++i) {
+  //  oss << s_[i] << " ";
+  //}
+  //oss << "\n";
+  //LOG(INFO) << oss.str();
 }
 
 void Vertex::UpdateParamLocal(const float n_z_new, const float n_z_old,
@@ -269,6 +273,18 @@ void Vertex::UpdateParamLocal(const float n_z_new, const float n_z_old,
     s_[ele.first] += ele.second - s_z_old.find(ele.first)->second;
   }
   n_ += n_z_new - n_z_old;
+}
+
+
+void Vertex::PrintChildrenList(ostringstream& oss) const {
+  oss << idx_ << ": ";
+  for (const auto child : children_) {
+    oss << child->idx() << " ";
+  }
+  oss << "\n";
+  for (const auto child : children_) {
+    child->PrintChildrenList(oss);
+  }
 }
 
 #if 0
@@ -436,7 +452,7 @@ inline void Vertex::ComputeVarZPrior() {
     // root node has phi=1
     expt_log_phi_z = 0;
   }
-  LOG(INFO) << idx_ << " expt_log_phi_z " << expt_log_phi_z;
+  //LOG(INFO) << idx_ << " expt_log_phi_z " << expt_log_phi_z;
 
   //TODO
   CHECK(!isnan(expt_log_phi_z)) << digamma(sigma_[0]) << " " << sigma_[0] << " "
@@ -447,8 +463,8 @@ inline void Vertex::ComputeVarZPrior() {
   const float expt_log_nu_z
       = digamma(tau_[0]) - digamma_tau_sum;
 
-  LOG(INFO) << idx_ << " expt_log_nu_z " << expt_log_nu_z 
-      << " parent_->var_z_prior_part_for_child():" << parent_->var_z_prior_part_for_child();
+  //LOG(INFO) << idx_ << " expt_log_nu_z " << expt_log_nu_z 
+  //    << " parent_->var_z_prior_part_for_child():" << parent_->var_z_prior_part_for_child();
 
   // E [ log p(z | \nu, \psi) ]
   var_z_prior_ = parent_->var_z_prior_part_for_child() 
@@ -492,10 +508,10 @@ float Vertex::ComputeELBO() const {
       + n_ * var_z_prior_;
 
   CHECK(!isnan(elbo));
-  LOG(INFO) << "index = " << idx_ << "\tELBO = " << elbo << "\t" 
-      << beta_ * DotProdFloatVectors(mean_, s_) << "\t" << n_ 
-      << "\t" << n_ * var_z_prior_ << "\t" 
-      << n_ * LogVMFProbNormalizer(mean_.size(), beta_);
+  //LOG(INFO) << "index = " << idx_ << "\tELBO = " << elbo << "\t" 
+  //    << beta_ * DotProdFloatVectors(mean_, s_) << "\t" << n_ 
+  //    << "\t" << n_ * var_z_prior_ << "\t" 
+  //    << n_ * LogVMFProbNormalizer(mean_.size(), beta_);
 
   elbo += (1 - tau_[0]) * (digamma(tau_[0]) - digamma(tau_[0] + tau_[1]))
       + (alpha_ - tau_[1]) * (digamma(tau_[1]) - digamma(tau_[0] + tau_[1]));
@@ -508,7 +524,7 @@ float Vertex::ComputeELBO() const {
   }
       
   CHECK(!isnan(elbo));
-  LOG(INFO) << "index = " << idx_ << "\tELBO = " << elbo;
+  //LOG(INFO) << "index = " << idx_ << "\tELBO = " << elbo;
 
   float rho = 0;
   const FloatVec& parent_mean = parent_->mean(); 
@@ -528,16 +544,16 @@ float Vertex::ComputeELBO() const {
   }
 
   CHECK(!isnan(elbo));
-  LOG(INFO) << "index = " << idx_ << "\tELBO = " << elbo;
+  //LOG(INFO) << "index = " << idx_ << "\tELBO = " << elbo;
 
   elbo += LogVMFProbNormalizer(mean_.size(), rho)
       - LogVMFProbNormalizer(mean_.size(), kappa_);
 
   CHECK(!isnan(elbo));
-  LOG(INFO) << "index = " << idx_ << "\tELBO = " << elbo 
-      << " rho=" << rho << " kappa=" << kappa_ << " " 
-      << LogVMFProbNormalizer(mean_.size(), rho) << " "
-      << LogVMFProbNormalizer(mean_.size(), kappa_);
+  //LOG(INFO) << "index = " << idx_ << "\tELBO = " << elbo 
+  //    << " rho=" << rho << " kappa=" << kappa_ << " " 
+  //    << LogVMFProbNormalizer(mean_.size(), rho) << " "
+  //    << LogVMFProbNormalizer(mean_.size(), kappa_);
 
   return elbo;
 }

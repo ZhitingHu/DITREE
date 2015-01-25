@@ -79,14 +79,18 @@ void Solver::Solve(const char* resume_file) {
     test_display_gap_ = loss_table_staleness / param_.test_interval() + 1; 
   }
 
+  const int num_clocks_per_epoch = Context::get_int32("num_clocks_per_epoch");
+  const int num_threads = Context::get_int32("num_app_threads");
+  const int param_table_staleness = Context::get_int32("param_table_staleness");
+  CHECK_GE(num_clocks_per_epoch, param_table_staleness
+      + (train_data_->batch_num() + num_threads - 1) / num_threads);
   CHECK_GT(param_.split_sample_start_iter(), param_.merge_iter());
+  
   //
   for (; epoch_ < param_.max_epoch(); ++epoch_) {
     LOG(INFO) << "==================================== epoch " << epoch_ << " " << client_id_ << " " << thread_id_;
-    FinishDataBatchMergeMove();
-    train_data_->Restart();
-    petuum::PSTableGroup::GlobalBarrier();
     /// VI
+    int num_clocks = 0;
     while (!train_data_->epoch_end()) {
       // Save a snapshot if needed.
       if (param_.snapshot() && iter_ > start_iter &&
@@ -116,6 +120,8 @@ void Solver::Solve(const char* resume_file) {
         tree_->UpdateTreeStructAfterMerge();
         LOG(INFO) << "***** Merge Update Local struc Done."<< client_id_ << " " << thread_id_;
 
+        ConstructMergeMap();
+
         petuum::PSTableGroup::GlobalBarrier();
         tree_->ReadParamTable();
         LOG(INFO) << "***** read param table done. "<< client_id_ << " " << thread_id_;
@@ -123,6 +129,7 @@ void Solver::Solve(const char* resume_file) {
         LOG(INFO) << "***** recurs param done. "<< client_id_ << " " << thread_id_;
 
         Context::set_phase(Context::Phase::kVIAfterMerge, thread_id_); 
+        tree_->PrintTreeStruct();
       }
  
       // Sample target vertexes to split  
@@ -130,7 +137,7 @@ void Solver::Solve(const char* resume_file) {
         ClearLastSplit(); //TODO: clear until epoch finishes
         LOG(INFO) << "SampleVertexToSplit. ";
         SampleVertexToSplit();
-        LOG(INFO) << "SampleVertexToSplit Done.";
+        LOG(INFO) << "SampleVertexToSplit Done. "<< client_id_ << " " << thread_id_;
         collect_target_data_ = true;
       }
 
@@ -138,6 +145,8 @@ void Solver::Solve(const char* resume_file) {
       Update();
       
       petuum::PSTableGroup::Clock();
+      ++num_clocks;
+      LOG(INFO) << "#clock " << num_clocks << " by " <<client_id_ << " " << thread_id_;;
  
       // Display
       if (param_.display() && iter_ % param_.display() == 0) {
@@ -146,8 +155,10 @@ void Solver::Solve(const char* resume_file) {
 
       ++iter_;
     }
+    for (; num_clocks <= num_clocks_per_epoch; ++num_clocks) {
+      petuum::PSTableGroup::Clock();
+    }
     train_data_->set_need_restart();
-
 
     if (epoch_ < param_.max_epoch() - 1) {
       /// Split
@@ -174,9 +185,25 @@ void Solver::Solve(const char* resume_file) {
     }
 
     LOG(INFO) << "Tree size: " << tree_->size();
-    for (auto v : tree_->vertexes()) {
-      LOG(INFO) << "idx: " <<v.second->idx();
-    }
+    tree_->PrintTreeStruct();
+
+    FinishDataBatchMergeMove();
+
+    Context::Wait();
+    // Sync
+    //Context::IncRestartThreadCounter();
+    //LOG(ERROR) << " Im here 1 " << thread_id_;
+    //Context::WaitToRestart();
+    //LOG(ERROR) << " Im here 2 " << thread_id_;
+    //if (thread_id_ == 0) {
+    //  Context::ResetRestartThreadCounter();
+    //}
+    //LOG(ERROR) << " Im here 3 " << thread_id_;
+
+    train_data_->Restart();
+    petuum::PSTableGroup::GlobalBarrier();
+
+    LOG(ERROR) << " Im here " << thread_id_;
 
     /// 
     start_iter = 0;
@@ -200,6 +227,7 @@ void Solver::Update() {
   if (data_batch->n().size() == 0) {
     data_batch->InitSuffStatStruct(tree_, train_data_->data());
   } else {
+    //LOG(INFO) << "Update suff " << data_batch->data_idx_begin() << " tid=" << thread_id_;
     data_batch->UpdateSuffStatStruct(tree_, Context::phase(thread_id_));
   }
  
@@ -220,21 +248,21 @@ void Solver::Update() {
 #endif
   // z prior
   root_->RecursComputeVarZPrior();
-  for (const auto v : tree_->vertexes()) {
-    LOG(INFO) << v.second->idx() << " var_z_prior: " << v.second->var_z_prior();
-  }
+  //LOG(INFO) << "recurs var z prior done. ";
+  //for (const auto v : tree_->vertexes()) {
+  //  LOG(INFO) << v.second->idx() << " var_z_prior: " << v.second->var_z_prior();
+  //}
 
   float tree_elbo_tmp_start = tree_->ComputeELBO();
-  LOG(INFO) << "ELBO before training " << tree_elbo_tmp_start;
+  //LOG(INFO) << "ELBO before training " << tree_elbo_tmp_start;
 
-  LOG(INFO) << "recurs var z prior done. ";
   // likelihood
-  LOG(INFO) << "databatch " << data_batch->data_idx_begin() << " " << data_batch->size();
+  //LOG(INFO) << "databatch " << data_batch->data_idx_begin() << " " << data_batch->size();
 
   int d_idx = data_batch->data_idx_begin();
   int data_idx_end = d_idx + data_batch->size();
   for (; d_idx < data_idx_end; ++d_idx) {
-    LOG(INFO) << "data " << d_idx;
+    //LOG(INFO) << "data " << d_idx;
     const Datum* datum = train_data_->datum(d_idx);
     UIntFloatMap log_weights;
     float max_log_weight = -1;
@@ -259,21 +287,22 @@ void Solver::Update() {
 #endif
     float n_prob = 0;
     if (d_idx == data_batch->data_idx_begin()) {
-      LOG(INFO) << "here first datum of the batch";
+      //LOG(INFO) << "here first datum of the batch";
       BOOST_FOREACH(UIntFloatPair& n_new_ele, n_new) {
         float datum_z_prob = exp(log_weights[n_new_ele.first] - log_weight_sum);
         n_new_ele.second = datum_z_prob;
 
-        LOG(INFO) << "n_new_ele " << n_new_ele.first << " " 
-            << n_new_ele.second << " " << exp(log_weights[n_new_ele.first] - log_weight_sum);
+        //LOG(INFO) << "n_new_ele " << n_new_ele.first << " " 
+        //    << n_new_ele.second << " " << exp(log_weights[n_new_ele.first] - log_weight_sum);
 
         // have reset s_new at the beginning
         AccumUIntFloatMap(datum->data(), datum_z_prob, s_new[n_new_ele.first]);
 
         h += datum_z_prob * (log_weights[n_new_ele.first] - log_weight_sum);
-        LOG(INFO) << "h " << h << " = " << n_new_ele.second << " * " 
-           << (log_weights[n_new_ele.first] - log_weight_sum) << " " 
-           << datum_z_prob;
+
+        //LOG(INFO) << "h " << h << " = " << n_new_ele.second << " * " 
+        //   << (log_weights[n_new_ele.first] - log_weight_sum) << " " 
+        //   << datum_z_prob;
 
         n_prob += datum_z_prob;
       }
@@ -282,15 +311,15 @@ void Solver::Update() {
         float datum_z_prob = exp(log_weights[n_new_ele.first] - log_weight_sum);
         n_new_ele.second += datum_z_prob;
         
-        LOG(INFO) << "n_new_ele " << n_new_ele.first << " " 
-            << n_new_ele.second << " " << exp(log_weights[n_new_ele.first] - log_weight_sum);
+        //LOG(INFO) << "n_new_ele " << n_new_ele.first << " " 
+        //    << n_new_ele.second << " " << exp(log_weights[n_new_ele.first] - log_weight_sum);
 
         AccumUIntFloatMap(datum->data(), datum_z_prob, s_new[n_new_ele.first]);
 
         h += datum_z_prob * (log_weights[n_new_ele.first] - log_weight_sum);
-        LOG(INFO) << "h " << h << " = " 
-           << datum_z_prob  << " * "
-           << (log_weights[n_new_ele.first] - log_weight_sum);
+        //LOG(INFO) << "h " << h << " = " 
+        //   << datum_z_prob  << " * "
+        //   << (log_weights[n_new_ele.first] - log_weight_sum);
 
         n_prob += datum_z_prob;
       }
@@ -302,18 +331,18 @@ void Solver::Update() {
   } // end of datum
 
   //TODO
-  BOOST_FOREACH(const UIntFloatPair& ele, n_old) {
-    LOG(INFO) << "n_old " << ele.first << " " << ele.second;
-  }
-  BOOST_FOREACH(const UIntFloatPair& ele, n_new) {
-    LOG(INFO) << "n_new " << ele.first << " " << ele.second;
-  }
+  //BOOST_FOREACH(const UIntFloatPair& ele, n_old) {
+  //  LOG(INFO) << "n_old " << ele.first << " " << ele.second;
+  //}
+  //BOOST_FOREACH(const UIntFloatPair& ele, n_new) {
+  //  LOG(INFO) << "n_new " << ele.first << " " << ele.second;
+  //}
 
   tree_->UpdateParamTable(n_new, n_old, s_new, s_old);
   tree_->ReadParamTable();
-  LOG(INFO) << "read param table done. ";
+  //LOG(INFO) << "read param table done. ";
   root_->RecursConstructParam();
-  LOG(INFO) << "recurs param done. ";
+  //LOG(INFO) << "recurs param done. ";
  
   // TODO
   float tree_elbo_tmp = tree_->ComputeELBO();
@@ -324,7 +353,8 @@ void Solver::Update() {
   CHECK(!isnan(elbo));
   //CHECK_LT(elbo, 0) << elbo << " " << tree_elbo_tmp << " " <<  h / train_data_->size() * data_batch->size();
 
-  LOG(ERROR) << epoch_ << " " << iter_ << "," << elbo << "\t" << tree_elbo_tmp << "\t" << h / train_data_->size() * data_batch->size();
+  LOG(ERROR) << epoch_ << " " << iter_ << "," << elbo << "\t" << tree_elbo_tmp 
+      << "\t" << h / train_data_->size() * data_batch->size();
 }
 
 void Solver::Test() {
@@ -333,17 +363,37 @@ void Solver::Test() {
 
 void Solver::ClearLastSplit() {
   LOG(INFO) << "Clear last split";
-  for (auto target_data : split_target_data_) {
+  for (const auto& ele : tree_->vertex_split_records()) {
+    uint32 parent_vertex_idx = ele.first;
+    uint32 child_vertex_idx = ele.second;
+
+    if(split_target_data_.find(parent_vertex_idx) 
+        == split_target_data_.end()) {
+      continue;
+    }
+
+    TargetDataset* target_data = split_target_data_[parent_vertex_idx]; 
     if (!target_data->success()) {
       continue;
     }
-    uint32 parent_vertex_idx = target_data->target_vertex_idx();
-    uint32 child_vertex_idx = target_data->child_vertex_idx();
+    // The vertexes might have been merged, if so, update 
+    // the host vertex
+    map<uint32, uint32>::const_iterator it 
+        = merged_vertexes_host_idx_.find(parent_vertex_idx);
+    if (it != merged_vertexes_host_idx_.end()) {
+      parent_vertex_idx = it->second;
+    }
     tree_->vertex(parent_vertex_idx)->UpdateParamTableByInc(
         target_data->n_parent(), target_data->s_parent(), -1.0);
+
+    it = merged_vertexes_host_idx_.find(child_vertex_idx);
+    if (it != merged_vertexes_host_idx_.end()) {
+      child_vertex_idx = it->second;
+    }
     tree_->vertex(child_vertex_idx)->UpdateParamTableByInc(
         target_data->n_child(), target_data->s_child(), -1.0);
   }
+  FreeMap<uint32, TargetDataset>(split_target_data_);
   LOG(INFO) << "Clear last split done.";
 }
 
@@ -351,11 +401,14 @@ void Solver::SampleVertexToSplit() {
   vertexes_to_split_.clear();
   tree_->SampleVertexToSplit(vertexes_to_split_);
 
-  vector<TargetDataset*>().swap(split_target_data_);
-  for (int i = 0; i < vertexes_to_split_.size(); ++i) {
-    split_target_data_.push_back(new TargetDataset(vertexes_to_split_[i]));
+  for (const auto v_to_split : vertexes_to_split_) { 
+#ifdef DEBUG
+    CHECK(split_target_data_.find(v_to_split) == split_target_data_.end());
+#endif
+    split_target_data_[v_to_split] = new TargetDataset(v_to_split);
   }
 
+  // TODO
   for(uint32 v_t_p : vertexes_to_split_) {
     LOG(INFO) << "To split " << v_t_p;
   }
@@ -364,15 +417,15 @@ void Solver::SampleVertexToSplit() {
 void Solver::CollectTargetData(const UIntFloatMap& log_weights,
     const float log_weight_sum, const Datum* datum) {
   bool complete = true;
-  for (int v_idx_i = 0; v_idx_i < vertexes_to_split_.size(); ++v_idx_i) {
-    if (split_target_data_[v_idx_i]->size() >= max_target_data_size_) {
+  for (auto& ele : split_target_data_) {
+    TargetDataset* target_data = ele.second; 
+    if (target_data->size() >= max_target_data_size_) {
       continue;
     }
     complete = false;
-    uint32 v_idx = vertexes_to_split_[v_idx_i];
-    if ((log_weights.find(v_idx)->second - log_weight_sum) >
+    if ((log_weights.find(ele.first)->second - log_weight_sum) >
         log_target_data_threshold_) {
-      split_target_data_[v_idx_i]->AddDatum(datum, log_weights, log_weight_sum);
+      target_data->AddDatum(datum, log_weights, log_weight_sum);
     }
   } // end of target vertexes
   collect_target_data_ = (complete ? false : true);
@@ -383,14 +436,12 @@ void Solver::Split() {
  
   //LOG(FATAL) << "Solver->Split " << vertexes_to_split_.size() << " " << thread_id_ << " " << client_id_;
 
-  for (int i = 0; i < vertexes_to_split_.size(); ++i) {
-    uint32 v_idx = vertexes_to_split_[i];
+  for (const auto v_idx : vertexes_to_split_) {
     Vertex parent_vertex_copy = (*tree_->vertex(v_idx));
     Vertex* child_vertex = new Vertex();
-    TargetDataset* target_data = split_target_data_[i];
+    TargetDataset* target_data = split_target_data_[v_idx];
 
-    CHECK_GT(target_data->size(), 0);
-    LOG(INFO) << "target data size " << target_data->size() << " v=" << v_idx;
+    CHECK_GT(target_data->size(), 0) << " v_idx=" << v_idx;
 
     // Initialize
     SplitInit(&parent_vertex_copy, child_vertex, target_data);
@@ -401,9 +452,8 @@ void Solver::Split() {
     // TODO: validate
     
     // Accept the new child vertex
-    uint32 child_idx 
-        = tree_->AcceptSplitVertex(child_vertex, &parent_vertex_copy);
-    target_data->set_child_vertex_idx(child_idx);
+    child_vertex->mutable_n() -= child_vertex->temp_n();
+    tree_->AcceptSplitVertex(child_vertex, &parent_vertex_copy);
     target_data->set_success();
   }
 }
@@ -491,6 +541,8 @@ void Solver::SplitInit(Vertex* parent, Vertex* new_child,
   LOG(INFO) << "Split Init";
   // Initialize new_child
   new_child->CopyParamsFrom(parent);
+  new_child->mutable_n() = parent->n();
+  new_child->mutable_temp_n() = parent->n();
   FloatVec& new_child_mean = new_child->mutable_mean();
   //float new_child_split_weight = 0;
   const vector<Vertex*>& children = parent->children();
@@ -529,6 +581,7 @@ void Solver::SplitInit(Vertex* parent, Vertex* new_child,
       ave_children_mean[w_idx] /= ave_children_mean_norm;
       new_child_mean[w_idx] = parent_mean[w_idx] - ave_children_mean[w_idx];
       new_child_mean_norm += new_child_mean[w_idx] * new_child_mean[w_idx];
+      //new_child_mean_norm += new_child_mean[w_idx];
     }
 #ifdef DEBUG
     CHECK_GT(new_child_mean_norm, 0);
@@ -585,7 +638,11 @@ void Solver::Merge() {
   vertex_pairs_to_merge_.clear();
   LOG(INFO) << "SampleVertexPairsToMerge ";
   tree_->SampleVertexPairsToMerge(vertex_pairs_to_merge_);
-  LOG(INFO) << "SampleVertexPairsToMerge Done. " << vertex_pairs_to_merge_.size();
+  LOG(INFO) << "SampleVertexPairsToMerge Done. size=" 
+    << vertex_pairs_to_merge_.size() << " c=" << client_id_ << " t=" << thread_id_;
+  for (auto& ele : vertex_pairs_to_merge_) { 
+    LOG(INFO) << ele.first << " + " << ele.second;
+  }
   
   // Candidate vertexes pairs can be duplicated, so we need to 
   //   record which vertexes have been merged
@@ -627,13 +684,24 @@ void Solver::Merge() {
   }
 }
 
+void Solver::ConstructMergeMap() {
+  merged_vertexes_host_idx_.clear();
+  for (const auto& merge_record : tree_->vertex_merge_records()) {
+    merged_vertexes_host_idx_[merge_record.second] = merge_record.first;
+  }
+}
+
 void Solver::FinishDataBatchMergeMove() {
   while(true) {
+    //LOG(ERROR) << "t=" << thread_id_;
     DataBatch* data_batch = train_data_->GetNextBatchToApplyMerge();
     if (data_batch == NULL) {
+      //LOG(INFO) << "t=" << thread_id_ << " done.";
       break;
     }
+    //LOG(ERROR) << "t=" << thread_id_;
     data_batch->UpdateSuffStatStructByMerge(tree_->vertex_merge_records());
+    //LOG(ERROR) << "t=" << thread_id_;
   }
 }
 

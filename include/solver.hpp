@@ -36,6 +36,7 @@ class Solver {
   
   // Merge move
   void Merge();
+  void ConstructMergeMap();
   void FinishDataBatchMergeMove();
 
   //TODO
@@ -61,10 +62,12 @@ class Solver {
   bool collect_target_data_;
   float log_target_data_threshold_;
   int max_target_data_size_;
-  vector<TargetDataset*> split_target_data_;
+  map<uint32, TargetDataset*> split_target_data_;
 
   // for merge
   vector<pair<uint32, uint32> > vertex_pairs_to_merge_;
+  // guest_idx => host_idx of the last merge move
+  map<uint32, uint32> merged_vertexes_host_idx_;
   
   petuum::Table<float> train_loss_table_;
   petuum::Table<float> test_loss_table_;
