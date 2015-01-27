@@ -33,6 +33,8 @@ void DataBatch::InitSuffStatStruct(const Tree* tree,
       batch_words[ele.first] = 0;
     }
   }
+  LOG(INFO) << "SIZE:" << batch_words.size();
+
   n_.clear();
   s_.clear();
   const map<uint32, Vertex*>& vertexes = tree->vertexes(); 

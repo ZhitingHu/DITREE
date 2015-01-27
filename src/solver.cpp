@@ -87,10 +87,12 @@ void Solver::Solve(const char* resume_file) {
   const int param_table_staleness = Context::get_int32("param_table_staleness");
   CHECK_GE(num_clocks_per_epoch, param_table_staleness
       + (train_data_->batch_num() + num_threads - 1) / num_threads);
-  CHECK_GT(param_.split_sample_start_iter(), param_.merge_iter());
+  CHECK_GE(param_.split_sample_start_iter(), param_.merge_iter());
   
   //
-  tree_->PrintTreeStruct(train_data_->vocab());
+  if (client_id_ == 0 && thread_id_ == 0) {
+    tree_->PrintTreeStruct(train_data_->vocab());
+  }
   for (; epoch_ < param_.max_epoch(); ++epoch_) {
     LOG(INFO) << "==================================== epoch " << epoch_ 
         << " " << client_id_ << " " << thread_id_;
@@ -134,8 +136,12 @@ void Solver::Solve(const char* resume_file) {
         LOG(INFO) << "***** recurs param done. "<< client_id_ << " " << thread_id_;
 
         Context::set_phase(Context::Phase::kVIAfterMerge, thread_id_); 
-        tree_->PrintTreeStruct(train_data_->vocab());
-      }
+        if (client_id_ == 0 && thread_id_ == 0) {
+          tree_->PrintTreeStruct(train_data_->vocab());
+        } else {
+          tree_->PrintTreeStruct();
+        }
+      } 
  
       // Sample target vertexes to split  
       if (iter_ == param_.split_sample_start_iter()) {
@@ -156,7 +162,9 @@ void Solver::Solve(const char* resume_file) {
       // Display
       if (param_.display() && iter_ % param_.display() == 0) {
         //TODO: display
-        tree_->PrintTreeStruct(train_data_->vocab());
+        if (client_id_ == 0 && thread_id_ == 0) {
+          tree_->PrintTreeStruct(train_data_->vocab());
+        }
       }
 
       ++iter_;
@@ -191,7 +199,11 @@ void Solver::Solve(const char* resume_file) {
     }
 
     LOG(INFO) << "Tree size: " << tree_->size();
-    tree_->PrintTreeStruct(train_data_->vocab());
+    if (client_id_ == 0 && thread_id_ == 0) {
+      tree_->PrintTreeStruct(train_data_->vocab());
+    } else {
+      tree_->PrintTreeStruct();
+    }
 
     LOG(INFO) << "FinishDataBatchMergeMove ";
     FinishDataBatchMergeMove();

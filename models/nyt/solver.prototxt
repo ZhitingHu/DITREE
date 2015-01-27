@@ -7,8 +7,8 @@ snapshot: 100
 snapshot_after_train: true
 snapshot_prefix: "/home/zhitingh/dynamic-tree/DITREE/models/nyt/ditree_train"
 #
-split_sample_start_iter: 2
-split_target_data_threshold: 0.1
-split_max_target_data_size: 5000
+split_sample_start_iter: 1
+split_target_data_threshold: 0.05
+split_max_target_data_size: 1000
 #
-merge_iter: 1
+merge_iter: 1 

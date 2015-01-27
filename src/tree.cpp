@@ -53,30 +53,51 @@ void Tree::Init(const TreeParameter& param) {
 }
 
 void Tree::InitFromLayerLists() {
-  //cur_max_vertex_idx_ = 0;
-  //uint32 cur_table_idx = 0;
-  //VertexParameter vertex_param; 
-  //// Build root
-  //uint32 root_idx = cur_max_vertex_idx_++;
-  //vertex_param.set_index(root_idx);
-  //vertex_param.set_table_index(cur_table_idx);
-  //root_ = new Vertex(vertex_param, param_);
-  //root_->set_root();
-  //root_->set_parent(root_parent_);
-  //vertexes_[root_idx] = root_;
-  //int num_vertex_
-  //// Build other nodes
-  //for (int layer_idx = 0; layer_idx < param_.layer_size(); ++layer_idx) {
-  //  const LayerParameter& layer_param = param_.layers(layer_idx);
-  //  if (layer_param ) {
-  //  }
-  //}
+  cur_max_vertex_idx_ = 0;
+  uint32 cur_table_idx = 0;
+  VertexParameter vertex_param; 
+  // Build root
+  uint32 root_idx = cur_max_vertex_idx_;
+  vertex_param.set_index(root_idx);
+  vertex_param.set_table_index(cur_table_idx);
+  root_ = new Vertex(vertex_param, param_);
+  root_->set_root();
+  root_->set_parent(root_parent_);
+  vertexes_[root_idx] = root_;
+  uint32 cur_vertex_idx = 0;
+  int num_vertex_this_layer = 1;
+  // Build other nodes
+  for (int layer_idx = 0; layer_idx < param_.layers_size(); ++layer_idx) {
+    const LayerParameter& layer_param = param_.layers(layer_idx);
+    CHECK_EQ(layer_param.depth(), layer_idx + 1);
+    CHECK_EQ(layer_param.num_child_tables(), 1)
+        << "Do not support other values right now.";
+    int num_children_per_vertex = layer_param.num_children_per_vertex();
+    for (int pi = 0; pi < num_vertex_this_layer; ++pi) { 
+      Vertex* cur_vertex = vertexes_[cur_vertex_idx];
+      cur_table_idx++;
+      for (int ci = 0; ci < num_children_per_vertex; ++ci) {
+        uint32 child_vertex_idx = ++cur_max_vertex_idx_;
+        uint32 child_table_idx = cur_table_idx;    
+        vertex_param.set_index(child_vertex_idx);
+        vertex_param.set_table_index(child_table_idx);
+        Vertex* cur_child_vertex = new Vertex(vertex_param, param_);
+        vertexes_[child_vertex_idx] = cur_child_vertex;
+        cur_vertex->add_child(cur_child_vertex);
+      }
+      cur_vertex_idx++;
+    }
+    num_vertex_this_layer *= num_children_per_vertex;
+  } // end of layers
+  LOG(INFO) << "#vertexes: " << cur_max_vertex_idx_ + 1;
+  LOG(INFO) << "#tables: " << cur_table_idx + 1; 
 }
 
 void Tree::InitFromVertexLists() {
+  CHECK_GT(param_.vertexes_size(), 0);
   // Add vertexes
-  for (int v_idx_i = 0; v_idx_i < param.vertexes_size(); ++v_idx_i) {
-    const VertexParameter& vertex_param = param.vertexes(v_idx_i);
+  for (int v_idx_i = 0; v_idx_i < param_.vertexes_size(); ++v_idx_i) {
+    const VertexParameter& vertex_param = param_.vertexes(v_idx_i);
     // vertex index cannot be duplicated
     CHECK(vertexes_.find(vertex_param.index()) == vertexes_.end()) 
         << "Vertex index duplicates " << vertex_param.index();
@@ -91,8 +112,8 @@ void Tree::InitFromVertexLists() {
   }
   CHECK(root_ != NULL) << "Cannot find root.";
   // Connect the vertexes
-  for (int v_idx_i = 0; v_idx_i < param.vertexes_size(); ++v_idx_i) {
-    const VertexParameter& vertex_param = param.vertexes(v_idx_i);
+  for (int v_idx_i = 0; v_idx_i < param_.vertexes_size(); ++v_idx_i) {
+    const VertexParameter& vertex_param = param_.vertexes(v_idx_i);
     Vertex* vertex = vertexes_[vertex_param.index()];
     for (int c_idx_i = 0; c_idx_i < vertex_param.child_indexes_size(); 
         ++c_idx_i) {

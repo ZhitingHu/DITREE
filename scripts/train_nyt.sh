@@ -18,7 +18,8 @@ dataset=nyt
 
 # Input files:
 solver_filename="${app_dir}/models/nyt/solver.prototxt"
-model_filename="${app_dir}/models/nyt/model.prototxt"
+#model_filename="${app_dir}/models/nyt/model.prototxt"
+model_filename="${app_dir}/models/nyt/big_model.prototxt"
 #snapshot_filename="${app_dir}/"
 #params_filename="${app_dir}/"
 
@@ -26,14 +27,14 @@ model_filename="${app_dir}/models/nyt/model.prototxt"
 num_app_threads=16
 param_table_staleness=0
 loss_table_staleness=0
-num_clocks_per_epoch=20
+num_clocks_per_epoch=30
 num_comm_channels_per_client=1
 consistency_model="SSPPush"
 
 # PS Table Organization Paremeters
 max_depth=10
-max_num_children_per_vertex=20
-max_num_vertexes=1000
+max_num_children_per_vertex=40
+max_num_vertexes=10000
 max_size_per_table=5
 max_split_per_table=20
 max_merge_per_table=0
@@ -47,7 +48,7 @@ test_data="${app_dir}/data/nyt/nytimes.dat.bin.shuffled.test"
 mean="${app_dir}/data/nyt/nytimes.dat.bin_mean.txt"
 vocab="${app_dir}/data/nyt/vocab.nytimes.txt"
 vocab_size=102660
-train_batch_size=1000
+train_batch_size=6000
 test_batch_size=1000
 top_k=20
 

@@ -1,0 +1,18 @@
+alpha: 20
+gamma: 20
+beta: 100
+kappa_0: 10
+kappa_1: 1
+kappa_2: 1
+layers {
+  depth: 1
+  num_children_per_vertex: 50
+}
+layers {
+  depth: 2
+  num_children_per_vertex: 5
+}
+layers {
+  depth: 3
+  num_children_per_vertex: 2
+}

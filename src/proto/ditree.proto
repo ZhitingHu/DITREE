@@ -40,8 +40,8 @@ message TreeParameter {
 message LayerParameter {
   // root has depth 1
   optional int32 depth = 1;
-  optional int32 num_children_per_node = 2;
-  optional int32 num_child_tables = 3;
+  optional int32 num_children_per_vertex = 2;
+  optional int32 num_child_tables = 3 [default = 1];
 }
 
 // A message that stores the solver snapshots

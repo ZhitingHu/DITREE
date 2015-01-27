@@ -36,7 +36,9 @@ class DataBatch {
   /// sufficient statistics
   /// one entry for each topic component
   UIntFloatMap n_;
-  // vertex_id => (word_id => weight)
+
+  
+  // vertex_id => (weights)
   map<uint32, UIntFloatMap> s_;
 };
 
