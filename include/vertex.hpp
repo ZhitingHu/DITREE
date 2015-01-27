@@ -38,7 +38,9 @@ class Vertex {
   void UpdateParamLocal(const float n_z_new, const float n_z_old,
     const UIntFloatMap& s_z_new, const UIntFloatMap& s_z_old);
   
-  void PrintChildrenList(ostringstream& oss) const;
+  void RecursPrintChildrenList(ostringstream& oss) const;
+  void RecursPrintTopWords(const map<int, string>& vocab) const;
+  void PrintTopWords(const map<int, string>& vocab) const;
 
   inline FloatVec& mutable_mean() { return mean_; }
   inline const FloatVec& mean() const { return mean_; }

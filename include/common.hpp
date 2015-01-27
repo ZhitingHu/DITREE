@@ -78,11 +78,13 @@ enum ParamTableCols {
   kColIdxParamTableSStart
 };
 
-const int kNumLossTableCols = 3;
+const int kNumLossTableCols = 5;
 enum LossTableCols {
-  kColIdxLossTableIter = 0,
+  kColIdxLossTableEpoch = 0,
+  kColIdxLossTableIter,
   kColIdxLossTableTime,
   kColIdxLossTableLoss,
+  kColIdxLossTableNumDatum,
 };
 
 const int kNumStructTableRecordCols = 2;

@@ -78,7 +78,7 @@ void DITreeEngine::CreateTables() {
   table_config.table_info.table_staleness = param_table_staleness;
   table_config.table_info.row_capacity = param_row_length;
   table_config.process_cache_capacity = max_num_vertexes + 5;
-  table_config.table_info.dense_row_oplog_capacity = param_row_length;
+  table_config.table_info.dense_row_oplog_capacity = param_row_length + 10;
   table_config.oplog_capacity = table_config.process_cache_capacity;
   petuum::PSTableGroup::CreateTable(kParamTableID, table_config);
   LOG(INFO) << "Created param table " << kParamTableID;
@@ -107,7 +107,7 @@ void DITreeEngine::CreateTables() {
   table_config.table_info.row_capacity = struct_row_length;
   table_config.process_cache_capacity = tot_num_threads + 10;
   //table_config.process_cache_capacity = max_num_tables + 10;
-  table_config.table_info.dense_row_oplog_capacity = 10;
+  table_config.table_info.dense_row_oplog_capacity = struct_row_length + 10;
   table_config.oplog_capacity = table_config.process_cache_capacity;
   petuum::PSTableGroup::CreateTable(kStructTableID, table_config);
   LOG(INFO) << "Created struct table " << kStructTableID;
@@ -144,9 +144,30 @@ void DITreeEngine::CreateTables() {
 }
 
 void DITreeEngine::ReadData() {
-  const string& data_file = Context::get_string("data");
-  LOG(INFO) << "Reading data " << data_file;
-  train_data_.Init(data_file); 
+  LOG(INFO) << "Reading data.";
+  int num_clients = Context::get_int32("num_clients");
+  int client_id = Context::get_int32("client_id");
+
+  const string& train_data_file = Context::get_string("train_data");
+  const string& vocab_file = Context::get_string("vocab");
+  if (num_clients == 1) {
+    train_data_.Init(train_data_file, vocab_file, true);
+  } else {
+    ostringstream oss;
+    oss << train_data_file << "_" << client_id;
+    string oss_str = oss.str();
+    train_data_.Init(oss_str, vocab_file, true);
+  }
+ 
+  const string& test_data_file = Context::get_string("test_data");
+  if (num_clients == 1) {
+    test_data_.Init(test_data_file); 
+  } else {
+    ostringstream oss;
+    oss << test_data_file << "_" << client_id;
+    string oss_str = oss.str();
+    test_data_.Init(oss_str);
+  }
 }
 
 void DITreeEngine::Start() {
@@ -161,7 +182,7 @@ void DITreeEngine::Start() {
   const string& params_path = Context::get_string("params");
   //const string& tree_outputs_prefix = Context::get_string("tree_outputs");
 
-  Solver* solver = new Solver(solver_param_, thread_id, &train_data_); 
+  Solver* solver = new Solver(solver_param_, thread_id, &train_data_, &test_data_); 
 
   LOG(INFO) << "Start " << client_id << " " << thread_id << " " << thread_counter_; 
 

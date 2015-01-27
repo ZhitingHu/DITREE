@@ -10,7 +10,7 @@ prog_path=${app_dir}/build/tools/${progname}
 dataset_path="${app_dir}/data/syn/"
 docs_file="docs_train.bin"
 
-echo "Compute mean vector"
+echo "Shuffle data"
 
 GLOG_logtostderr=1
    $prog_path \

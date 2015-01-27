@@ -14,6 +14,7 @@ class Dataset {
   explicit Dataset() {};
   
   DataBatch* GetNextDataBatch();
+  DataBatch* GetRandomDataBatch();
   void Restart(); 
  
   const inline Datum* datum(int idx) {
@@ -28,8 +29,10 @@ class Dataset {
   inline int batch_num() { return data_batches_.size(); }
   inline vector<Datum*>& data() { return data_; }
   inline void set_need_restart() { need_restart_ = true; }
+  inline const map<int, string>& vocab() { return vocab_; }
 
-  void Init(const string& filename);
+  void Init(const string& doc_file, const string& vocab_file = "",
+      const bool train = false);
 
   void RecordLastIterBeforeMerge() {
     last_iter_before_merge_ = iter_;
@@ -38,10 +41,14 @@ class Dataset {
 
  private:
   void ReadData(const string& filename);
+  void ReadVocab(const string& filename);
 
  private:
   vector<DataBatch*> data_batches_;
   vector<Datum*> data_;
+ 
+  map<int, string> vocab_;
+
   // 
   int iter_;
   vector<int> data_batch_queue_;

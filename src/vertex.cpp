@@ -69,7 +69,7 @@ void Vertex::RecursConstructParam() {
 
 void Vertex::ConstructParam() {
   // tau
-  tau_[0] = tau_fixed_part_[0] + n_; 
+  tau_[0] = tau_fixed_part_[0] + n_;
   float children_n_sum = 0;
   for (int c_idx = 0; c_idx < children_.size(); ++c_idx) {
     children_n_sum += children_[c_idx]->var_n_sum_for_parent();
@@ -255,6 +255,9 @@ void Vertex::ReadParamTable() {
   for (int i = 0; i < s_.size(); ++i) {
     s_[i] = row_cache[kColIdxParamTableSStart + i];
   }
+#ifdef DEBUG
+  CHECK_GE(n_, -kFloatEpsilon) << "index=" << idx_;
+#endif
 
   // TODO
   //LOG(INFO) << "Read PS Table - vertex " << idx_;
@@ -275,17 +278,36 @@ void Vertex::UpdateParamLocal(const float n_z_new, const float n_z_old,
   n_ += n_z_new - n_z_old;
 }
 
-
-void Vertex::PrintChildrenList(ostringstream& oss) const {
-  oss << idx_ << ": ";
+void Vertex::RecursPrintChildrenList(ostringstream& oss) const {
+  oss << idx_ << " (" << table_idx_ << "," << child_table_idx_ << "): ";
   for (const auto child : children_) {
     oss << child->idx() << " ";
   }
   oss << "\n";
   for (const auto child : children_) {
-    child->PrintChildrenList(oss);
+    child->RecursPrintChildrenList(oss);
   }
 }
+void Vertex::RecursPrintTopWords(const map<int, string>& vocab) const {
+  PrintTopWords(vocab);
+  for (const auto& child : children_) {
+    child->RecursPrintTopWords(vocab);
+  }
+}
+void Vertex::PrintTopWords(const map<int, string>& vocab) const {
+  ostringstream oss;
+  oss << "\n";
+  oss << idx_ << " (" << n_ << "): ";
+  vector<pair<int, float> > top_word_ids;
+  int top_k = Context::get_int32("top_k");
+  ditree::SortFloatVec(mean_, top_word_ids, top_k);
+  for (int i = 0; i < top_k; ++i) {
+    oss << vocab.find(top_word_ids[i].first)->second << ":"
+        << top_word_ids[i].second << " ";
+  }
+  LOG(INFO) << oss.str();
+}
+
 
 #if 0
 void Vertex::RecursUpdateParamTable(
@@ -507,11 +529,10 @@ float Vertex::ComputeELBO() const {
       + n_ * LogVMFProbNormalizer(mean_.size(), beta_)
       + n_ * var_z_prior_;
 
-  CHECK(!isnan(elbo));
-  //LOG(INFO) << "index = " << idx_ << "\tELBO = " << elbo << "\t" 
-  //    << beta_ * DotProdFloatVectors(mean_, s_) << "\t" << n_ 
-  //    << "\t" << n_ * var_z_prior_ << "\t" 
-  //    << n_ * LogVMFProbNormalizer(mean_.size(), beta_);
+  CHECK(!isnan(elbo)) << "index = " << idx_ << "\t" 
+      << beta_ * DotProdFloatVectors(mean_, s_) << "\t" 
+      << n_ << "\t" << var_z_prior_ << "\t" 
+      << LogVMFProbNormalizer(mean_.size(), beta_);
 
   elbo += (1 - tau_[0]) * (digamma(tau_[0]) - digamma(tau_[0] + tau_[1]))
       + (alpha_ - tau_[1]) * (digamma(tau_[1]) - digamma(tau_[0] + tau_[1]));
@@ -523,8 +544,9 @@ float Vertex::ComputeELBO() const {
         * (digamma(sigma_[1]) - digamma(sigma_[0] + sigma_[1]));
   }
       
-  CHECK(!isnan(elbo));
-  //LOG(INFO) << "index = " << idx_ << "\tELBO = " << elbo;
+  CHECK(!isnan(elbo)) << "index = " << idx_ << "\t" 
+      << tau_[0] << " " << tau_[1] << " " 
+      << sigma_[0] << " " << sigma_[1];
 
   float rho = 0;
   const FloatVec& parent_mean = parent_->mean(); 
@@ -543,17 +565,15 @@ float Vertex::ComputeELBO() const {
     rho = kappa_0_ * kappa_1_;
   }
 
-  CHECK(!isnan(elbo));
-  //LOG(INFO) << "index = " << idx_ << "\tELBO = " << elbo;
+  CHECK(!isnan(elbo)) << "index = " << idx_;
 
   elbo += LogVMFProbNormalizer(mean_.size(), rho)
       - LogVMFProbNormalizer(mean_.size(), kappa_);
 
-  CHECK(!isnan(elbo));
-  //LOG(INFO) << "index = " << idx_ << "\tELBO = " << elbo 
-  //    << " rho=" << rho << " kappa=" << kappa_ << " " 
-  //    << LogVMFProbNormalizer(mean_.size(), rho) << " "
-  //    << LogVMFProbNormalizer(mean_.size(), kappa_);
+  CHECK(!isnan(elbo)) << "index = " << idx_ 
+      << " rho=" << rho << " kappa=" << kappa_ << " " 
+      << LogVMFProbNormalizer(mean_.size(), rho) << " "
+      << LogVMFProbNormalizer(mean_.size(), kappa_);
 
   return elbo;
 }

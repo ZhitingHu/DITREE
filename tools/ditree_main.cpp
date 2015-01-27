@@ -41,11 +41,10 @@ DEFINE_int32(max_size_per_table, 100,
     "Maximum number of parent of a table.");
 DEFINE_int32(max_split_per_table, 1,
     "Maximum times of split each epoch per table.");
+DEFINE_int32(max_merge_per_table, 0,
+    "Maximum times of merge each epoch per table.");
 DEFINE_int32(num_table_id_bits, 8,
     "Number of digit for representing table id, must be in (0, 32).");
-
-DEFINE_int32(max_merge_per_table, 1,
-    "Maximum times of merge each epoch per table.");
 
 // DITree Parameters
 DEFINE_string(solver, "",
@@ -61,17 +60,25 @@ DEFINE_string(ditree_outputs, "",
 DEFINE_int32(history, 1,
     "Number of history time slice to consider.");
 // Data Parameters
-DEFINE_string(data, "",
-    "The data path.");
+DEFINE_string(train_data, "",
+    "The training data path.");
+DEFINE_string(test_data, "",
+    "The test data path.");
 DEFINE_string(mean, "",
     "Mean of the word vectors.");
+DEFINE_string(vocab, "",
+    "Vocabulary file.");
 DEFINE_int32(vocab_size, 0,
     "Size of the vocabulary.");
-DEFINE_int32(batch_size, 100,
-    "Size of a minibatch.");
+DEFINE_int32(train_batch_size, 100,
+    "Size of a minibatch for training.");
+DEFINE_int32(test_batch_size, 100,
+    "Size of a minibatch for test.");
 //Other Parameters
 DEFINE_int32(random_seed, -1,
     "Use system time as rand seed by default.");
+DEFINE_int32(top_k, 10,
+    "Number of top words of each topic to show");
 
 
 int main(int argc, char** argv) {

@@ -5,8 +5,7 @@
 #include "vertex.hpp"
 #include "util.hpp"
 #include "mutable_heap.hpp"
-#include "data_batch.hpp"
-#include "dataset.hpp"
+#include "datum.hpp"
 #include "proto/ditree.pb.h"
 
 namespace ditree {
@@ -16,8 +15,7 @@ class Tree {
   explicit Tree(const TreeParameter& param, const int thread_id);
   explicit Tree(const string& param_file, const int thread_id);
 
-  void Init(const TreeParameter& param);
-  void InitParam();
+  void InitParam(const vector<Datum*>& data);
 
   void UpdateParamTable(
       const UIntFloatMap& data_batch_n_new, 
@@ -44,6 +42,7 @@ class Tree {
   float ComputeELBO();
 
   void PrintTreeStruct();
+  void PrintTreeStruct(const map<int, string>& vocab);
 
   // number of nodes
   inline int size() { return vertexes_.size(); }
@@ -68,10 +67,14 @@ class Tree {
   
  private: 
 
+  void Init(const TreeParameter& param);
+  void InitFromVertexLists();
+  void InitFromLayerLists();
+
   void ConstructTableMetaInfo();
 
   void MergeTwoVertex(const uint32 host_v_idx, const uint32 guest_v_idx,
-      map<uint32, uint32>& vertex_idx_update);
+      const int record_idx);
 
   //void UpdateParentChildTableRelation(const uint32 parent_table_idx, 
   //    const uint32 child_table_idx, const int child_table_size);
@@ -128,20 +131,6 @@ class Tree {
   int global_worker_id_;
   int tot_num_threads_;
  
-  struct SortByFirstOfPair {
-    bool operator() (const pair<uint32, uint32>& lhs,
-        const pair<uint32, uint32>& rhs) {
-      return (lhs.first < rhs.first)
-          || (lhs.first == rhs.first && lhs.second < rhs.second);
-    }
-  };
-  struct SortBySecondOfPair {
-    bool operator() (const pair<uint32, uint32>& lhs,
-        const pair<uint32, uint32>& rhs) {
-      return (lhs.second < rhs.second) 
-          || (lhs.second == rhs.second && lhs.first < rhs.first);
-    }
-  };
 };
 
 } // namespace ditree

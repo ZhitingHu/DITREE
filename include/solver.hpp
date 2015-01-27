@@ -12,9 +12,9 @@ namespace ditree {
 class Solver {
  public:
   explicit Solver(const SolverParameter& param, const int thread_id,
-      Dataset* train_data);
+      Dataset* train_data, Dataset* test_data);
   explicit Solver(const string& param_file, const int thread_id,
-      Dataset* train_data);
+      Dataset* train_data, Dataset* test_data);
 
   void Solve(const char* resume_file = NULL);
   inline void Solve(const string resume_file) { Solve(resume_file.c_str()); }
@@ -22,6 +22,7 @@ class Solver {
  private: 
   void Init(const SolverParameter& param);
   void Test();
+  void UpdateTestLossTable(const float log_likelihood, const int num_datum);
   void Update();
 
   // Split move
@@ -54,6 +55,7 @@ class Solver {
   Vertex* root_;
 
   Dataset* train_data_;
+  Dataset* test_data_;
   int epoch_;
   int iter_;
 

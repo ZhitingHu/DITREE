@@ -22,6 +22,38 @@ class Triple {
   float w_;
 };
 
+struct AscSortByFirstOfUIntPair {
+  bool operator() (const pair<uint32, uint32>& lhs,
+      const pair<uint32, uint32>& rhs) {
+    return (lhs.first < rhs.first)
+        || (lhs.first == rhs.first && lhs.second < rhs.second);
+  }
+};
+struct DesSortBySecondOfUIntPair {
+  bool operator() (const pair<uint32, uint32>& lhs,
+      const pair<uint32, uint32>& rhs) {
+    return (lhs.second > rhs.second) 
+        || (lhs.second == rhs.second && lhs.first > rhs.first);
+  }
+};
+struct DesSortBySecondOfIntFloatPair {
+  bool operator() (const pair<int, float>& lhs,
+      const pair<int, float>& rhs) {
+    return (lhs.second > rhs.second) 
+        || (lhs.second == rhs.second && lhs.first > rhs.first);
+  }
+};
+
+inline void SortFloatVec(const FloatVec& v, vector<pair<int, float> >& sorted_v, 
+    const int top_k) {
+  sorted_v.clear();
+  for (int w_idx = 0; w_idx < v.size(); ++w_idx) {
+    sorted_v.push_back(make_pair(w_idx, v[w_idx]));
+  }
+  std::partial_sort(sorted_v.begin(), sorted_v.begin() + top_k, 
+      sorted_v.end(), DesSortBySecondOfIntFloatPair());
+}
+
 inline void PrintFloatVec(const FloatVec& v) {
   ostringstream oss;
   for (const auto v_ele : v) {

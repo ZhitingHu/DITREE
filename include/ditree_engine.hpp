@@ -26,7 +26,7 @@ class DITreeEngine {
   SolverParameter solver_param_;
 
   Dataset train_data_;
-  //Dataset test_data_;
+  Dataset test_data_;
 
   // 
   std::atomic<int> thread_counter_;

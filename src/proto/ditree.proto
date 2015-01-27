@@ -23,6 +23,7 @@ message VertexParameter {
   repeated float s = 16;
 }
 
+// Next: 10
 message TreeParameter {
   optional float alpha = 1;
   optional float gamma = 2;
@@ -30,9 +31,17 @@ message TreeParameter {
   optional float kappa_0 = 4;
   optional float kappa_1 = 5;
   optional float kappa_2 = 6;
+  repeated LayerParameter layers = 9;
   repeated VertexParameter vertexes = 7;
   // The current "state" of the tree, including the phase
   optional TreeState state = 8;
+}
+
+message LayerParameter {
+  // root has depth 1
+  optional int32 depth = 1;
+  optional int32 num_children_per_node = 2;
+  optional int32 num_child_tables = 3;
 }
 
 // A message that stores the solver snapshots

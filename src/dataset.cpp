@@ -13,13 +13,22 @@ namespace ditree {
 
 boost::mutex data_access_mutex;
 
-void Dataset::Init(const string& filename) {
-  ReadData(filename);
+void Dataset::Init(const string& doc_file, const string& vocab_file,
+    const bool train) {
+  if (vocab_file.size()) {
+    ReadVocab(vocab_file);
+  }
+  ReadData(doc_file);
   CHECK_GT(data_.size(), 0);
 
   // initialize data batches
   ditree::Context& context = ditree::Context::Get();
-  int batch_size = context.get_int32("batch_size");
+  int batch_size = 0;
+  if (train) { 
+    batch_size = context.get_int32("train_batch_size");
+  } else {
+    batch_size = context.get_int32("test_batch_size");
+  }
   int num_batches = (data_.size() + batch_size - 1) / batch_size;
   CHECK_GT(num_batches, 0);
   data_batches_.resize(num_batches);
@@ -30,6 +39,7 @@ void Dataset::Init(const string& filename) {
   }
   data_batches_[db_idx] 
       = new DataBatch(data_idx_begin, data_.size() - data_idx_begin);
+
   //TODO
   LOG(INFO) << "Size of last batch: " << data_.size() - data_idx_begin;
 
@@ -47,7 +57,7 @@ void Dataset::Init(const string& filename) {
 
 void Dataset::ReadData(const string& filename) {
   //TODO
-  FloatVec tot_word(Context::vocab_size());
+  //FloatVec tot_word(Context::vocab_size());
 
   fstream input(filename.c_str(), ios::in | ios::binary);
   CHECK(input.is_open()) << "File not found: " << filename;
@@ -66,7 +76,7 @@ void Dataset::ReadData(const string& filename) {
       datum->AddWord(word_id, word_weight);
     
       //TODO 
-      tot_word[word_id] += word_weight;
+      //tot_word[word_id] += word_weight;
     }
     data_.push_back(datum);
     counter++;
@@ -77,20 +87,36 @@ void Dataset::ReadData(const string& filename) {
   }
   input.close();
 
-  //TODO
-  ostringstream oss;
-  oss << "============================\n";
-  for (int i=0; i<tot_word.size(); ++i) {
-    oss << tot_word[i] << " ";
+  //TODO 
+  //ostringstream oss;
+  //oss << "============================\n";
+  //for (int i=0; i<tot_word.size(); ++i) {
+  //  oss << tot_word[i] << " ";
+  //}
+  //oss << "\n";
+  //LOG(INFO) << oss.str();
+}
+
+void Dataset::ReadVocab(const string& filename) {
+  LOG(INFO) << "Read vocab " << filename;
+  vocab_.clear();
+
+  fstream input(filename.c_str(), ios::in);
+  CHECK(input.is_open()) << "File not found: " << filename;
+  int word_id = 0;
+  string word_str;
+  while (getline(input, word_str)) {
+    vocab_[word_id] = word_str;
+    ++word_id;
   }
-  oss << "\n";
-  LOG(INFO) << oss.str();
+  input.close();
+  CHECK_EQ(vocab_.size(), Context::vocab_size());
 }
 
 DataBatch* Dataset::GetNextDataBatch() {
-  LOG(INFO) << "Get next batch iter_=" << iter_ 
-    << " " << data_batch_queue_[iter_] << " size " << data_batches_.size();
   boost::mutex::scoped_lock lock(data_access_mutex);
+  LOG(INFO) << "Get next batch iter_=" << iter_ 
+    << " " << data_batch_queue_[iter_] << " #batches " << data_batches_.size();
   if (iter_ < data_batches_.size()) {
     DataBatch* next_batch = data_batches_[data_batch_queue_[iter_]];
     ++iter_;
@@ -98,6 +124,12 @@ DataBatch* Dataset::GetNextDataBatch() {
   } else {
     return NULL;
   }
+}
+
+DataBatch* Dataset::GetRandomDataBatch() {
+  int db_idx = Context::randInt() % data_batches_.size();
+  DataBatch* next_batch = data_batches_[db_idx];
+  return next_batch;
 }
 
 DataBatch* Dataset::GetNextBatchToApplyMerge() {
