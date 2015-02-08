@@ -11,7 +11,7 @@ namespace ditree {
 class TargetDataset {
  public:
   explicit TargetDataset(const uint32 target_vertex_idx) 
-      : target_vertex_idx_(target_vertex_idx), success_(false) {
+      : target_vertex_idx_(target_vertex_idx) {
     n_parent_ = 0;
     n_child_ = 0;
   }
@@ -22,18 +22,19 @@ class TargetDataset {
     BOOST_FOREACH(const UIntFloatPair& lw_ele, log_weights) {
       origin_n_[lw_ele.first] += exp(lw_ele.second - log_weights_sum);
     }
-    BOOST_FOREACH(const UIntFloatPair& d_ele, datum->data()) {
-      s_parent_[d_ele.first] = 0;
-      s_child_[d_ele.first] = 0;
-    }
 #ifdef DEBUG
     CHECK_EQ(origin_n_.size(), log_weights.size());
 #endif
+    BOOST_FOREACH(const UIntFloatPair& d_ele, datum->data()) {
+      if (word_idxes_.find(d_ele.first) == word_idxes_.end()) {
+        int index = word_idxes_.size();
+        word_idxes_[d_ele.first] = index;
+      } 
+    }
+    s_parent_.resize(word_idxes_.size());
+    s_child_.resize(word_idxes_.size());
   }
  
-  inline bool success() const { return success_; }
-  inline void set_success() { success_ = true; }
-
   inline uint32 target_vertex_idx() { return target_vertex_idx_; }
   inline uint32 child_vertex_idx() { return child_vertex_idx_; }
   inline void set_child_vertex_idx(const uint32 child_vertex_idx) {
@@ -50,25 +51,28 @@ class TargetDataset {
   inline const vector<const Datum*>& data() { return data_; }
   inline int size() const { return data_.size(); }
 
-  inline float& n_parent() { return n_parent_; }
-  inline float& n_child() { return n_child_; }
-  inline UIntFloatMap& s_parent() { return s_parent_; }  
-  inline UIntFloatMap& s_child() { return s_child_; }  
+  inline UIntUIntMap& word_idxes() { return word_idxes_; }
+  inline float n_parent() const { return n_parent_; }
+  inline float n_child() const { return n_child_; }
+  inline float& mutable_n_parent() { return n_parent_; }
+  inline float& mutable_n_child() { return n_child_; }
+  inline FloatVec& s_parent() { return s_parent_; }  
+  inline FloatVec& s_child() { return s_child_; }  
 
  private:
 
  private:
   vector<const Datum*> data_;
- 
+  UIntUIntMap word_idxes_; 
+
   uint32 target_vertex_idx_;
   uint32 child_vertex_idx_;
-  bool success_;
   
   // Used in restricted update
   float n_parent_;
   float n_child_;
-  UIntFloatMap s_parent_;
-  UIntFloatMap s_child_;
+  FloatVec s_parent_;
+  FloatVec s_child_;
 
   UIntFloatMap origin_n_;
 };

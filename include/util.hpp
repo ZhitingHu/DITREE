@@ -85,15 +85,6 @@ inline void CopyUIntFloatMap(const UIntFloatMap& source,
     target[s_ele.first] = s_ele.second * coeff;
   }
 }
-inline void AccumUIntFloatMap(const UIntFloatMap& source, 
-    const float coeff, UIntFloatMap& target) {
-  BOOST_FOREACH(const UIntFloatPair& s_ele, source) {
-#ifdef DEBUG
-    CHECK(target.find(s_ele.first) != target.end());
-#endif
-    target[s_ele.first] += s_ele.second * coeff;
-  }
-}
 inline void CopyFloatVec(const FloatVec& source, 
     const float coeff, FloatVec& target) {
 #ifdef DEBUG
@@ -103,13 +94,31 @@ inline void CopyFloatVec(const FloatVec& source,
     target[s_idx] = coeff * source[s_idx];
   }
 }
-inline void AccumFloatVec(const FloatVec& source, 
-    const float coeff, FloatVec& target) {
+inline void Accum(const FloatVec& source, const float coeff, FloatVec& target) {
 #ifdef DEBUG
     CHECK_EQ(source.size(), target.size());
 #endif
   for (int s_idx = 0; s_idx < source.size(); ++s_idx) {
     target[s_idx] += coeff * source[s_idx];
+  }
+}
+inline void Accum(const UIntFloatMap& source, const float coeff,
+    UIntFloatMap& target) {
+  BOOST_FOREACH(const UIntFloatPair& s_ele, source) {
+#ifdef DEBUG
+    CHECK(target.find(s_ele.first) != target.end());
+#endif
+    target[s_ele.first] += s_ele.second * coeff;
+  }
+}
+inline void Accum(const UIntFloatMap& source, const float coeff, 
+    const UIntUIntMap& idx_map, FloatVec& target) {
+  BOOST_FOREACH(const UIntFloatPair& s_ele, source) {
+#ifdef DEBUG
+    CHECK(idx_map.find(s_ele.first) != idx_map.end());
+    CHECK_LT(idx_map.find(s_ele.first)->second, target.size());
+#endif
+    target[idx_map.find(s_ele.first)->second] += s_ele.second * coeff;
   }
 }
 
@@ -137,6 +146,13 @@ inline float DotProdFloatVectors(const FloatVec& X, const FloatVec& Y) {
   return prod;
 }
 
+template <class T>
+void FreeVec(std::vector<T*>& delete_vec) {
+  for (auto ele : delete_vec) {
+    delete ele;
+  }
+  std::vector<T*>().swap(delete_vec);
+}
 template <class I, class T>
 void FreeMap(std::map<I, T*>& delete_map) {
   for (auto& ele : delete_map) {
@@ -211,12 +227,12 @@ inline float LogVMFProb(const UIntFloatMap& x, const FloatVec& mu, float kappa) 
   return result;
 }
 
-inline double LogVMFProbNormalizer(const double V, const double kappa) {
-  static const double pi = atan(1.)*4;
-  double result
-      = (V/2.0 - 1)*log(kappa) - (V/2.0)*log(2*pi) - fastLogBesselI(V/2.0 - 1, kappa);
-  return result;
-}
+//inline double LogVMFProbNormalizer(const double V, const double kappa) {
+//  static const double pi = atan(1.)*4;
+//  double result
+//      = (V/2.0 - 1)*log(kappa) - (V/2.0)*log(2*pi) - fastLogBesselI(V/2.0 - 1, kappa);
+//  return result;
+//}
 
 /*
  * given log(a) and log(b), return log(a + b)

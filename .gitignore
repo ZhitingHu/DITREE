@@ -46,3 +46,4 @@ distribute/*
 # Data and outputs
 data/*
 output/*
+models/*

@@ -1,7 +1,7 @@
 alpha: 20
 gamma: 20
-beta: 100
-kappa_0: 10
+beta: 100000
+kappa_0: 100
 kappa_1: 1
 kappa_2: 1
 vertexes {

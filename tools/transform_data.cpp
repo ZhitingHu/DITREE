@@ -29,6 +29,7 @@ int main(int argc, char** argv) {
   fstream output(output_file.c_str(), ios::out | ios::binary);
   CHECK(output.is_open()) << "Fail to create file: " << output_file;
 
+  int max_word_id = -1;
   set<int> vocab;
  
   int num_doc;
@@ -41,7 +42,7 @@ int main(int argc, char** argv) {
   int counter = 0;
   for (int d=0; d<num_doc; ++d) {
     input >> doc_len;
-    CHECK_GT(doc_len, 0);
+    CHECK_GT(doc_len, 0) << " doc: " << d;
     vector<int> word_ids(doc_len);
     vector<float> word_weights(doc_len);
     word_weight_norm = 0;
@@ -49,8 +50,9 @@ int main(int argc, char** argv) {
       input >> word_ids[i] >> word_weights[i];
       word_weight_norm += word_weights[i] * word_weights[i];
       vocab.insert(word_ids[i]);
+      max_word_id = max(max_word_id, word_ids[i]);
     }
-    CHECK_GT(word_weight_norm, 0);
+    CHECK_GT(word_weight_norm, 0) << " doc: " << d;
     word_weight_norm = sqrt(word_weight_norm);
     output.write((char*)&doc_len, sizeof(int)); 
     for (int i=0; i<doc_len; ++i) {
@@ -59,7 +61,8 @@ int main(int argc, char** argv) {
       output.write((char*)&normed_word_weight, sizeof(float)); 
     }
   }
-  LOG(INFO) << "vocab size: " << vocab.size();
+  LOG(INFO) << "#unique occur words: " << vocab.size();
+  LOG(INFO) << "max word id: " << max_word_id;
 
   input.close();
   output.close();

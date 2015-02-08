@@ -33,7 +33,6 @@ void Context::Init() {
 
   vocab_size_ = get_int32("vocab_size");
   max_num_split_per_table_ = get_int32("max_split_per_table");
-  //num_thread_ready_to_restart_ = 0;
   spanning_barrier_ = new SpinningBarrier(num_app_threads_);
  
   int rand_seed = get_int32("random_seed");

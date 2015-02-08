@@ -38,13 +38,12 @@ class Solver {
   // Merge move
   void Merge();
   void ConstructMergeMap();
-  void FinishDataBatchMergeMove();
+  void FinishMergeMove();
 
-  //TODO
-  void Snapshot() {}
-  void Restore(const char* resume_file) {}
+  void Snapshot();
+  void Restore(const char* resume_file);
 
-  //void RegisterPSTables();
+  void RegisterPSTables();
  private:
   SolverParameter param_;
 
@@ -64,14 +63,17 @@ class Solver {
   bool collect_target_data_;
   float log_target_data_threshold_;
   int max_target_data_size_;
+  // parent_idx => target data
   map<uint32, TargetDataset*> split_target_data_;
+  // parent_idx => target data
+  map<uint32, TargetDataset*> split_target_data_last_;
 
   // for merge
   vector<pair<uint32, uint32> > vertex_pairs_to_merge_;
   // guest_idx => host_idx of the last merge move
   map<uint32, uint32> merged_vertexes_host_idx_;
   
-  petuum::Table<float> train_loss_table_;
+  //petuum::Table<float> train_loss_table_;
   petuum::Table<float> test_loss_table_;
   int display_counter_;
   int test_counter_;

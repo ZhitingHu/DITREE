@@ -8,6 +8,9 @@
 
 namespace ditree {
 
+/*
+ * no history
+ */
 Vertex::Vertex(const VertexParameter& param, const TreeParameter& tree_param) {
   Init();
   idx_ = param.index();
@@ -19,17 +22,65 @@ Vertex::Vertex(const VertexParameter& param, const TreeParameter& tree_param) {
   kappa_1_ = tree_param.kappa_1(); 
   kappa_2_ = tree_param.kappa_2(); 
   beta_ = tree_param.beta(); 
-  // TODO: history
-  kappa_ = kappa_0_ * kappa_1_;
   alpha_ = tree_param.alpha();
   gamma_ = tree_param.gamma();
   tau_[0] = tau_fixed_part_[0] = 1.0;
   tau_[1] = tau_fixed_part_[1] = alpha_;
-  sigma_fixed_part_[0] = 1.0;
+  sigma_[0] = sigma_fixed_part_[0] = 1.0;
+  sigma_[1] = sigma_fixed_part_[1] = gamma_;
+  kappa_ = kappa_0_ * kappa_1_;
+}
+
+void Vertex::LoadHistory(const VertexParameter& history) {
+  CHECK_EQ(history.mean_size(), mean_.size());
+
+  // mean history
+  mean_history_.resize(mean_.size());
+  for (int i = 0; i < mean_history_.size(); ++i) {
+    mean_history_[i] = history.mean(i);
+  }
+  LOG(INFO) << "1.";
+  // prior history
+  tau_history_[0].clear();
+  tau_history_[1].clear();
+  sigma_history_[0].clear();
+  sigma_history_[1].clear();
+  int history_size = Context::get_int32("history_size");
+  int history_restore_sidx
+      = max(0, history.tau_0_history_size() - history_size - 1);
+  int history_last_idx = history.tau_0_history_size() - history_restore_sidx;
+  LOG(INFO) << "2. " << history.tau_0_history_size();
+  for (int i = history_restore_sidx; i < history.tau_0_history_size(); ++i) {
+    tau_history_[0].push_back(history.tau_0_history(i));
+    tau_history_[1].push_back(history.tau_1_history(i));
+    sigma_history_[0].push_back(history.sigma_0_history(i));
+    sigma_history_[1].push_back(history.sigma_1_history(i));
+ 
+    tau_fixed_part_[0] += tau_history_[0][i - history_restore_sidx];
+    tau_fixed_part_[1] += tau_history_[1][i - history_restore_sidx];
+    sigma_fixed_part_[0] += sigma_history_[0][i - history_restore_sidx];
+    sigma_fixed_part_[1] += sigma_history_[1][i - history_restore_sidx];
+  }
+  LOG(INFO) << "3.";
+  tau_history_[0].push_back(history.tau_0());
+  tau_history_[1].push_back(history.tau_1());
+  sigma_history_[0].push_back(history.sigma_0());
+  sigma_history_[1].push_back(history.sigma_1());
+  tau_fixed_part_[0] += tau_history_[0][history_last_idx];
+  tau_fixed_part_[1] += tau_history_[1][history_last_idx];
+  sigma_fixed_part_[0] += sigma_history_[0][history_last_idx];
+  sigma_fixed_part_[1] += sigma_history_[1][history_last_idx];
+  
+  tau_[0] = tau_fixed_part_[0];
+  tau_[1] = tau_fixed_part_[1];
   sigma_[0] = sigma_fixed_part_[0];
-  sigma_fixed_part_[1] = tree_param.gamma();
   sigma_[1] = sigma_fixed_part_[1];
-  // if have history, new_born_ = false
+
+  LOG(INFO) << "4.";
+  // NOTE: initialize mean_ and kappa_ after all vertexes are setup (in Tree)
+
+  //
+  new_born_ = false;
 }
 
 void Vertex::Init() {
@@ -135,11 +186,17 @@ void Vertex::ConstructParam() {
   }
   kappa_ = sqrt(kappa_);
 #ifdef DEBUG
-  CHECK_GE(kappa_, kFloatEpsilon);
+  // TODO
+  if (kappa_ < kFloatEpsilon) {
+    kappa_ += kFloatEpsilon;
+  }
+  CHECK_GE(kappa_, kFloatEpsilon * 0.01);
 #endif
   for (int i = 0; i < mean_.size(); ++i) {
     mean_[i] /= kappa_;
   }
+
+  //EstimateBeta();
 
   //ostringstream oss;
   //oss << "mean of " << idx_ << ": ";
@@ -151,35 +208,43 @@ void Vertex::ConstructParam() {
   //LOG(INFO) << "kappa_ = " << kappa_;
 }
 
+void Vertex::EstimateBeta() {
+  float s_norm = 0;
+  for (const auto& s_ele : s_) {
+    s_norm += s_ele * s_ele;
+  }
+  float r = sqrt(s_norm) / n_;
+#ifdef DEBUG
+  CHECK(!isnan(r)) << s_norm << " " << n_;
+  CHECK(!isinf(r)) << s_norm << " " << n_;
+#endif 
+  beta_ = (r * s_.size() - r * r * r) / (1 - r * r);
+#ifdef DEBUG
+  CHECK(!isnan(beta_)) << s_norm << " " << n_ << " " << r << " " << idx_;
+  CHECK(!isinf(beta_)) << s_norm << " " << n_ << " " << r << " " << idx_;
+#endif 
+}
+
+void Vertex::InitParamFromHistoryAndParent() {
+#ifdef DEBUG
+  CHECK(parent_ != NULL) << " index=" << idx_;
+  CHECK(!new_born_) << " index=" << idx_;
+#endif
+  const FloatVec& parent_mean = parent_->mean();
+  float mean_norm = 0;
+  for (int i = 0; i< mean_.size(); ++i) {
+    mean_[i] = kappa_1_ * parent_mean[i] + kappa_2_ * mean_history_[i];
+    mean_norm += mean_[i] * mean_[i];
+  }
+  mean_norm = sqrt(mean_norm);
+  CHECK_GE(mean_norm, kFloatEpsilon);
+  for (int i = 0; i< mean_.size(); ++i) {
+    mean_[i] /= mean_norm;
+  }
+  kappa_ = mean_norm * kappa_0_;
+}
+
 void Vertex::InitParam(const float n_init, const FloatVec& s_init) {
-  // Init param table
-//#ifdef DEBUG
-//  CHECK_EQ(s_init.size(), s_.size());
-//#endif
-//  petuum::Table<float>* param_table = Context::param_table();
-//  petuum::DenseUpdateBatch<float> update_batch(
-//      0, kColIdxParamTableSStart + s_.size());
-//  update_batch[kColIdxParamTableN] = n_init; 
-//  for (int w_idx = 0; w_idx < s_.size(); ++w_idx) {
-//    //update_batch[kColIdxParamTableSStart + w_idx] = s_init[w_idx];
-//    update_batch[kColIdxParamTableSStart + w_idx] = Context::rand();
-//  }
-//  param_table->DenseBatchInc(idx_, update_batch);
- 
-  /// Init params
-  // Must do this, since a vertex's param depends on both parent 
-  // and children in ConstructParam()
-//  float s_init_norm = 0;
-//  for (int s_idx = 0; s_idx < s_init.size();; ++s_idx) {
-//    s_init_norm = s_init[s_idx] * s_init[s_idx];
-//  }
-//  s_init_norm = sqrt(s_init_norm);
-//#ifdef DEBUG
-//    CHECK_EQ(s_init.size(), mean_size());
-//#endif
-//  for (int s_idx = 0; s_idx < s_init.size(); ++s_idx) {
-//    mean_[s_idx] = s_init[s_idx] / s_init_norm;
-//  }
   //TODO: history
   for (int s_idx = 0; s_idx < s_init.size(); ++s_idx) {
     mean_[s_idx] = s_init[s_idx]; 
@@ -187,17 +252,17 @@ void Vertex::InitParam(const float n_init, const FloatVec& s_init) {
 }
 
 void Vertex::UpdateParamTable(const float data_batch_n_z_new, 
-    const float data_batch_n_z_old, const UIntFloatMap& data_batch_s_z_new,
-    const UIntFloatMap& data_batch_s_z_old) {
+    const float data_batch_n_z_old, const UIntUIntMap& word_idxes,
+    const FloatVec& data_batch_s_z_new, const FloatVec& data_batch_s_z_old) {
   petuum::Table<float>* param_table = Context::param_table();
   petuum::DenseUpdateBatch<float> update_batch(
       0, kColIdxParamTableSStart + s_.size());
   update_batch[kColIdxParamTableN] 
       = data_batch_n_z_new - data_batch_n_z_old;
 
-  BOOST_FOREACH(const UIntFloatPair& ele, data_batch_s_z_new) {
+  for (const auto& ele : word_idxes) {
     update_batch[kColIdxParamTableSStart + ele.first] 
-        = ele.second - data_batch_s_z_old.find(ele.first)->second;
+        = data_batch_s_z_new[ele.second] - data_batch_s_z_old[ele.second];
   }
   param_table->DenseBatchInc(idx_, update_batch);
 }
@@ -218,15 +283,15 @@ void Vertex::UpdateParamTable(const float data_batch_n_z_new,
   param_table->DenseBatchInc(idx_, update_batch);
 }
 
-void Vertex::UpdateParamTableByInc(const float n_z, const UIntFloatMap& s_z,
-    const float coeff) {
+void Vertex::UpdateParamTableByInc(const float n_z, const UIntUIntMap& word_idxes,
+      const FloatVec& s_z, const float coeff) {
   petuum::Table<float>* param_table = Context::param_table();
   petuum::DenseUpdateBatch<float> update_batch(
       0, kColIdxParamTableSStart + s_.size());
   update_batch[kColIdxParamTableN] = coeff * n_z;
 
-  BOOST_FOREACH(const UIntFloatPair& ele, s_z) {
-    update_batch[kColIdxParamTableSStart + ele.first] = coeff * ele.second;
+  for (const auto& ele : word_idxes) {
+    update_batch[kColIdxParamTableSStart + ele.first] = coeff * s_z[ele.second];
   }
   param_table->DenseBatchInc(idx_, update_batch);
 }
@@ -256,8 +321,12 @@ void Vertex::ReadParamTable() {
     s_[i] = row_cache[kColIdxParamTableSStart + i];
   }
 #ifdef DEBUG
-  CHECK_GE(n_, -kFloatEpsilon) << "index=" << idx_;
+  CHECK_GE(n_, -0.01) << "index=" << idx_;
 #endif
+  // TODO
+  if (n_ < kFloatEpsilon) {
+    n_ = kFloatEpsilon;
+  }
 
   // TODO
   //LOG(INFO) << "Read PS Table - vertex " << idx_;
@@ -271,11 +340,12 @@ void Vertex::ReadParamTable() {
 }
 
 void Vertex::UpdateParamLocal(const float n_z_new, const float n_z_old,
-    const UIntFloatMap& s_z_new, const UIntFloatMap& s_z_old) {
-  BOOST_FOREACH(const UIntFloatPair& ele, s_z_new) {
-    s_[ele.first] += ele.second - s_z_old.find(ele.first)->second;
-  }
+    const UIntUIntMap& word_idxes, const FloatVec& s_z_new, 
+    const FloatVec& s_z_old) {
   n_ += n_z_new - n_z_old;
+  for (const auto& ele : word_idxes) {
+    s_[ele.first] += s_z_new[ele.second] - s_z_old[ele.second];
+  }
 }
 
 void Vertex::RecursPrintChildrenList(ostringstream& oss) const {
@@ -308,6 +378,13 @@ void Vertex::PrintTopWords(const map<int, string>& vocab) const {
   LOG(INFO) << oss.str();
 }
 
+int Vertex::CalSubTreeSize() const {
+  int size = 1;
+  for (const auto& child : children_) {
+    size += child->CalSubTreeSize();
+  }
+  return size;
+}
 
 #if 0
 void Vertex::RecursUpdateParamTable(
@@ -510,29 +587,35 @@ inline float Vertex::ComputeTaylorApprxCoeff(const float rho_apprx) {
   CHECK_GE(rho_apprx, kFloatEpsilon);
 #endif
   const float V = mean_.size();
-  const float bessel_1 = exp(ditree::fastLogBesselI(V / 2.0, rho_apprx));
-  const float bessel_2 = exp(ditree::fastLogBesselI(V / 2.0 - 1, rho_apprx));
-#ifdef DEBUG
-  CHECK(!isinf(bessel_1));
-  CHECK(!isinf(bessel_2));
-  CHECK(!isnan(bessel_1));
-  CHECK(!isnan(bessel_2));
-  CHECK_GE(bessel_2, kFloatEpsilon);
-#endif
-  return ((V - 2.0) + (bessel_1 / bessel_2 + (V / 2.0 - 1.0) / rho_apprx)) 
+
+  /// Acc. to the definition of BesselI function, it's provable that when
+  /// V >> rho_apprx, then bessel_1 / bessel_2 ~= 0.
+  //
+  //const float bessel_1 = exp(ditree::fastLogBesselI(V / 2.0, rho_apprx));
+  //const float bessel_2 = exp(ditree::fastLogBesselI(V / 2.0 - 1, rho_apprx));
+  //#ifdef DEBUG
+  //CHECK(!isinf(bessel_1));
+  //CHECK(!isinf(bessel_2));
+  //CHECK(!isnan(bessel_1));
+  //CHECK(!isnan(bessel_2));
+  //CHECK_GE(bessel_2, kFloatEpsilon);
+  //#endif
+ 
+  return ((V - 2.0) + (/*bessel_1 / bessel_2*/ kFloatEpsilon 
+      + (V / 2.0 - 1.0) / rho_apprx))
       * kappa_0_ * kappa_0_ * kappa_1_ * kappa_2_ / rho_apprx;
 }
 
 float Vertex::ComputeELBO() const {
   float elbo = 0;
   elbo += beta_ * DotProdFloatVectors(mean_, s_) 
-      + n_ * LogVMFProbNormalizer(mean_.size(), beta_)
+     // + n_ * LogVMFProbNormalizer(mean_.size(), beta_)
       + n_ * var_z_prior_;
 
   CHECK(!isnan(elbo)) << "index = " << idx_ << "\t" 
       << beta_ * DotProdFloatVectors(mean_, s_) << "\t" 
-      << n_ << "\t" << var_z_prior_ << "\t" 
-      << LogVMFProbNormalizer(mean_.size(), beta_);
+      << n_ << "\t" << var_z_prior_;
+      // << "\t" << LogVMFProbNormalizer(mean_.size(), beta_);
 
   elbo += (1 - tau_[0]) * (digamma(tau_[0]) - digamma(tau_[0] + tau_[1]))
       + (alpha_ - tau_[1]) * (digamma(tau_[1]) - digamma(tau_[0] + tau_[1]));
@@ -567,13 +650,13 @@ float Vertex::ComputeELBO() const {
 
   CHECK(!isnan(elbo)) << "index = " << idx_;
 
-  elbo += LogVMFProbNormalizer(mean_.size(), rho)
-      - LogVMFProbNormalizer(mean_.size(), kappa_);
+  //elbo += LogVMFProbNormalizer(mean_.size(), rho)
+  //    - LogVMFProbNormalizer(mean_.size(), kappa_);
 
-  CHECK(!isnan(elbo)) << "index = " << idx_ 
-      << " rho=" << rho << " kappa=" << kappa_ << " " 
-      << LogVMFProbNormalizer(mean_.size(), rho) << " "
-      << LogVMFProbNormalizer(mean_.size(), kappa_);
+  //CHECK(!isnan(elbo)) << "index = " << idx_ 
+  //    << " rho=" << rho << " kappa=" << kappa_ << " " 
+  //    << LogVMFProbNormalizer(mean_.size(), rho) << " "
+  //    << LogVMFProbNormalizer(mean_.size(), kappa_);
 
   return elbo;
 }
@@ -609,7 +692,7 @@ void Vertex::MergeFrom(const Vertex* host, const Vertex* guest) {
   // Suff stat
   n_ = host->n() + guest->n();     
   CopyFloatVec(host->s(), 1.0, s_);
-  AccumFloatVec(guest->s(), 1.0, s_);
+  ditree::Accum(guest->s(), 1.0, s_);
   //
   ConstructParam();
 
@@ -620,6 +703,42 @@ void Vertex::MergeFrom(const Vertex* host, const Vertex* guest) {
   //LOG(INFO) << sigma_[1] << " " << host->sigma(1);
 
   //TODO: history
+}
+
+
+void Vertex::ToProto(VertexParameter* param) {
+  param->Clear();
+  param->set_index(idx_);
+  param->set_table_index(table_idx_);
+  param->set_root(root_);
+  param->set_child_table_idx(child_table_idx_);
+  param->set_kappa(kappa_);
+  param->set_tau_0(tau_[0]);
+  param->set_tau_1(tau_[1]);
+  param->set_sigma_0(sigma_[0]);
+  param->set_sigma_1(sigma_[1]);
+  param->set_n(n_);
+  for (const auto& child : children_) {
+    param->add_child_indexes(child->idx());
+  }
+  for (const auto m : mean_) {
+    param->add_mean(m);
+  }
+  for (const auto s : s_) {
+    param->add_s(s);
+  }
+  for (const auto t0h : tau_history_[0]) {
+    param->add_tau_0_history(t0h);
+  }
+  for (const auto t1h : tau_history_[1]) {
+    param->add_tau_1_history(t1h);
+  }
+  for (const auto s0h : sigma_history_[0]) {
+    param->add_sigma_0_history(s0h);
+  }
+  for (const auto s1h : sigma_history_[1]) {
+    param->add_sigma_1_history(s1h);
+  }
 }
 
 } // namespace ditree

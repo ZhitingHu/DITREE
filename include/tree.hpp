@@ -14,14 +14,21 @@ class Tree {
  public:
   explicit Tree(const TreeParameter& param, const int thread_id);
   explicit Tree(const string& param_file, const int thread_id);
+  explicit Tree(const string& param_file, const string& history_file, 
+      const int thread_id);
 
-  void InitParam(const vector<Datum*>& data);
+  void InitParamRand(const vector<Datum*>& data);
+  void InitParamFromHistory();
+  void InitRootParent();
+  void LoadHistory(const TreeParameter& param, const TreeParameter& history);
+  void ToProto(TreeParameter* param);
 
   void UpdateParamTable(
       const UIntFloatMap& data_batch_n_new, 
       const UIntFloatMap& data_batch_n_old, 
-      const map<uint32, UIntFloatMap>& data_batch_s_new,
-      const map<uint32, UIntFloatMap>& data_batch_s_old);
+      const UIntUIntMap& word_idxes,
+      const map<uint32, FloatVec>& data_batch_s_new,
+      const map<uint32, FloatVec>& data_batch_s_old);
 
   void ReadParamTable();
 
@@ -44,6 +51,7 @@ class Tree {
   void PrintTreeStruct();
   void PrintTreeStruct(const map<int, string>& vocab);
 
+
   // number of nodes
   inline int size() { return vertexes_.size(); }
   inline Vertex* root() { return root_; }
@@ -57,6 +65,12 @@ class Tree {
   }
   inline const map<uint32, Vertex*>& vertexes() const {
     return vertexes_;
+  }
+  inline void clear_vertex_split_records() {
+    vertex_split_records_.clear();
+  }
+  inline void clear_vertex_merge_records() {
+    vertex_merge_records_.clear();
   }
   inline const vector<pair<uint32, uint32> >& vertex_split_records() const {
     return vertex_split_records_;
@@ -130,7 +144,6 @@ class Tree {
   int thread_id_;
   int global_worker_id_;
   int tot_num_threads_;
- 
 };
 
 } // namespace ditree

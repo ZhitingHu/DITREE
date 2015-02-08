@@ -40,7 +40,7 @@ void DITreeEngine::Init() {
   //TODO snapshot / resume
   // ...
   // param_table, struct_table, temp_param_table, loss_tables
-  table_group_config.num_tables = 5;
+  table_group_config.num_tables = kNumPSTables;
   petuum::PSTableGroup::RegisterRow<petuum::DenseRow<float> >
     (kFloatDenseRowDtypeID);
   petuum::PSTableGroup::RegisterRow<petuum::DenseRow<int> >
@@ -63,12 +63,12 @@ void DITreeEngine::CreateTables() {
   int num_threads = Context::get_int32("num_app_threads");
   int tot_num_threads = Context::get_int32("num_clients") * num_threads;
   int max_num_split_per_table = Context::get_int32("max_split_per_table");
+  int max_num_merge_per_table = Context::get_int32("max_merge_per_table");
   // common table config
   petuum::ClientTableConfig table_config;
   table_config.table_info.row_oplog_type = row_oplog_type;
   table_config.table_info.oplog_dense_serialized 
       = oplog_dense_serialized;
-  //TODO: build a sparse vertex_idx to dense row_idx map
   table_config.process_storage_type = petuum::BoundedSparse;
 
   // param table
@@ -77,13 +77,14 @@ void DITreeEngine::CreateTables() {
   table_config.table_info.row_type = ditree::kFloatDenseRowDtypeID;
   table_config.table_info.table_staleness = param_table_staleness;
   table_config.table_info.row_capacity = param_row_length;
-  table_config.process_cache_capacity = max_num_vertexes + 5;
+  table_config.process_cache_capacity = max_num_vertexes * 10 + 5;
   table_config.table_info.dense_row_oplog_capacity = param_row_length + 10;
   table_config.oplog_capacity = table_config.process_cache_capacity;
   petuum::PSTableGroup::CreateTable(kParamTableID, table_config);
   LOG(INFO) << "Created param table " << kParamTableID;
   // temp param table
-  int temp_param_table_row_num = max_num_split_per_table * max_num_tables;
+  int temp_param_table_row_num 
+    = max(max_num_split_per_table, max_num_merge_per_table) * max_num_tables;
   table_config.table_info.table_staleness = 0;
   table_config.process_cache_capacity = temp_param_table_row_num + 5;
   table_config.oplog_capacity = table_config.process_cache_capacity;
@@ -111,22 +112,24 @@ void DITreeEngine::CreateTables() {
   table_config.oplog_capacity = table_config.process_cache_capacity;
   petuum::PSTableGroup::CreateTable(kStructTableID, table_config);
   LOG(INFO) << "Created struct table " << kStructTableID;
+
   // train loss table
   const int max_iter_per_epoch 
       = (train_data_.batch_num() + num_threads - 1) / num_threads
       + param_table_staleness + 1; 
-  const int num_rows_train_loss_table
-      = solver_param_.max_epoch() * max_iter_per_epoch 
-      / solver_param_.display() + 1;
-  CHECK_GT(num_rows_train_loss_table, 0);
+  //const int num_rows_train_loss_table
+  //    = solver_param_.max_epoch() * max_iter_per_epoch 
+  //    / solver_param_.display() + 1;
+  //CHECK_GT(num_rows_train_loss_table, 0);
   table_config.table_info.row_type = ditree::kFloatDenseRowDtypeID;
   table_config.table_info.table_staleness = loss_table_staleness;
-  table_config.table_info.row_capacity = kNumLossTableCols;
-  table_config.process_cache_capacity = num_rows_train_loss_table + 5;
-  table_config.table_info.dense_row_oplog_capacity = 10;
-  table_config.oplog_capacity = table_config.process_cache_capacity;
-  petuum::PSTableGroup::CreateTable(kTrainLossTableID, table_config);
-  LOG(INFO) << "Created train loss table " << kTrainLossTableID;
+  //table_config.table_info.row_capacity = kNumLossTableCols;
+  //table_config.process_cache_capacity = num_rows_train_loss_table + 5;
+  table_config.table_info.dense_row_oplog_capacity = kNumLossTableCols + 5;
+  //table_config.oplog_capacity = table_config.process_cache_capacity;
+  //petuum::PSTableGroup::CreateTable(kTrainLossTableID, table_config);
+  //LOG(INFO) << "Created train loss table " << kTrainLossTableID;
+  
   // test loss table
   const int num_rows_test_loss_table
       = solver_param_.max_epoch() * max_iter_per_epoch 

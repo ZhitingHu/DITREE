@@ -27,28 +27,36 @@ model_filename="${app_dir}/models/nyt/big_model.prototxt"
 num_app_threads=16
 param_table_staleness=0
 loss_table_staleness=0
-num_clocks_per_epoch=30
-num_comm_channels_per_client=1
+num_clocks_per_epoch=5
+num_comm_channels_per_client=4
 consistency_model="SSPPush"
 
 # PS Table Organization Paremeters
-max_depth=10
-max_num_children_per_vertex=40
+max_depth=8
+max_num_children_per_vertex=1000
 max_num_vertexes=10000
-max_size_per_table=5
-max_split_per_table=20
+max_size_per_table=20
+max_split_per_table=10
 max_merge_per_table=0
-num_table_id_bits=10
+num_table_id_bits=11
 
 num_history=1
 
 # Datset Parameters
-train_data="${app_dir}/data/nyt/nytimes.dat.bin.shuffled.train"
-test_data="${app_dir}/data/nyt/nytimes.dat.bin.shuffled.test"
-mean="${app_dir}/data/nyt/nytimes.dat.bin_mean.txt"
-vocab="${app_dir}/data/nyt/vocab.nytimes.txt"
-vocab_size=102660
-train_batch_size=6000
+#train_data="${app_dir}/data/nyt/nytimes.dat.bin.shuffled.train"
+#test_data="${app_dir}/data/nyt/nytimes.dat.bin.shuffled.test"
+#mean="${app_dir}/data/nyt/nytimes.dat.bin_mean.txt"
+#vocab="${app_dir}/data/nyt/vocab.nytimes.txt"
+#vocab_size=102660
+#train_batch_size=6000
+#test_batch_size=1000
+
+train_data="${app_dir}/data/nyt/nytimes.dat.bin.trunc.txt.bin.shuffled.train"
+test_data="${app_dir}/data/nyt/nytimes.dat.bin.trunc.txt.bin.shuffled.test"
+mean="${app_dir}/data/nyt/nytimes.dat.bin.trunc.txt.bin_mean.txt"
+vocab="${app_dir}/data/nyt/vocab.nytimes.txt.trunc"
+vocab_size=50000
+train_batch_size=5630
 test_batch_size=1000
 top_k=20
 
@@ -114,7 +122,6 @@ for ip in $unique_host_list; do
       --max_split_per_table ${max_split_per_table} \
       --max_merge_per_table $max_merge_per_table \
       --num_table_id_bits $num_table_id_bits \
-      --history $num_history \
       --train_data $train_data \
       --test_data $test_data \
       --mean $mean \
@@ -122,7 +129,9 @@ for ip in $unique_host_list; do
       --vocab_size $vocab_size \
       --top_k ${top_k} \
       --train_batch_size $train_batch_size \
-      --test_batch_size $test_batch_size" #\
+      --test_batch_size $test_batch_size
+      --history_size $num_history" #\
+      #--history ${history_filename} \
       #--snapshot ${snapshot_filename} \
       #--params ${params_filename}"
 

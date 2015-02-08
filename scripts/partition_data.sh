@@ -7,9 +7,9 @@ app_dir=`dirname $script_dir`
 progname=partition_data
 prog_path=${app_dir}/build/tools/${progname}
 
-dataset_path="${app_dir}/data/nyt/"
-docs_file="nytimes.dat.bin.shuffled.test"
-num_partitions=2 
+dataset_path="${app_dir}/data/pubmed/"
+docs_file="docword.pubmed.txt.bin.trunc.txt.bin.shuffled.train"
+num_partitions=4
 
 echo "Partition "$docs_file
 

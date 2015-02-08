@@ -12,35 +12,43 @@ class Vertex {
   explicit Vertex(const VertexParameter& param,
       const TreeParameter& tree_param); 
   void Init();
+  void LoadHistory(const VertexParameter& history);
 
   void RecursConstructParam();
   void ConstructParam();
+  void EstimateBeta();
   void RecursComputeVarZPrior();
   void ComputeVarZPrior();
 
-  void ReadParamTable();
   void InitParam(const float n_init, const FloatVec& s_init);
-  
+  void InitParamFromHistoryAndParent();
+  void FromProto();
+
+  void ReadParamTable();
   // Overload update functions
-  void UpdateParamTable(const float data_batch_n_z_new,
-      const float data_batch_n_z_old, const UIntFloatMap& data_batch_s_z_new,
-      const UIntFloatMap& data_batch_s_z_old);
+  void UpdateParamTable(const float data_batch_n_z_new, 
+    const float data_batch_n_z_old, const UIntUIntMap& word_idxes,
+    const FloatVec& data_batch_s_z_new, const FloatVec& data_batch_s_z_old);
   void UpdateParamTable(const float data_batch_n_z_new,
       const float data_batch_n_z_old, const FloatVec& data_batch_s_z_new,
       const FloatVec& data_batch_s_z_old);
-  void UpdateParamTableByInc(const float n_z, const UIntFloatMap& s_z,
-      const float coeff);
+  void UpdateParamTableByInc(const float n_z, const UIntUIntMap& word_idxes,
+      const FloatVec& s_z, const float coeff);
   void UpdateParamTableByInc(const float n_z, const FloatVec& s_z,
       const float coeff);
 
   float ComputeELBO() const;
 
   void UpdateParamLocal(const float n_z_new, const float n_z_old,
-    const UIntFloatMap& s_z_new, const UIntFloatMap& s_z_old);
+    const UIntUIntMap& word_idxes, const FloatVec& s_z_new, 
+    const FloatVec& s_z_old);
   
   void RecursPrintChildrenList(ostringstream& oss) const;
   void RecursPrintTopWords(const map<int, string>& vocab) const;
   void PrintTopWords(const map<int, string>& vocab) const;
+  int CalSubTreeSize() const;
+  
+  void ToProto(VertexParameter* param);
 
   inline FloatVec& mutable_mean() { return mean_; }
   inline const FloatVec& mean() const { return mean_; }
@@ -50,8 +58,15 @@ class Vertex {
 #endif
     return mean_history_; 
   }
+
   inline float kappa() const { return kappa_; }
   inline float beta() const { return beta_; }
+  inline float kappa_0() const { return kappa_0_; }
+  inline float kappa_1() const { return kappa_1_; }
+  inline float kappa_2() const { return kappa_2_; }
+  inline float alpha() const { return alpha_; }
+  inline float gamma() const { return gamma_; }
+
   inline float tau(const int idx) const { 
 #ifdef DEBUG
     CHECK_LT(idx, 2);

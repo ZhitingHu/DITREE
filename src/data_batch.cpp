@@ -25,22 +25,23 @@ void DataBatch::UpdateSuffStatStruct(const Tree* tree,
 
 void DataBatch::InitSuffStatStruct(const Tree* tree, 
     const vector<Datum*>& data) {
-  UIntFloatMap batch_words;
   for (int i = 0; i < size_; ++i) {
     const UIntFloatMap& datum_words 
         = data[data_idx_begin_ + i]->data();
     BOOST_FOREACH(const UIntFloatPair& ele, datum_words) {
-      batch_words[ele.first] = 0;
+      if (word_idxes_.find(ele.first) == word_idxes_.end()) {
+        int index = word_idxes_.size();
+        word_idxes_[ele.first] = index;
+      } 
     }
   }
-  LOG(INFO) << "SIZE:" << batch_words.size();
 
   n_.clear();
   s_.clear();
   const map<uint32, Vertex*>& vertexes = tree->vertexes(); 
   BOOST_FOREACH(const UIntVertexPair& ele, vertexes) {
     n_[ele.first] = 0;
-    s_[ele.first] = batch_words;
+    s_[ele.first].resize(word_idxes_.size());
   }
 }
 
@@ -58,8 +59,7 @@ void DataBatch::UpdateSuffStatStructBySplit(
     CHECK(s_.find(child_idx) == s_.end());
 #endif
     n_[child_idx] = 0;
-    s_[child_idx] = s_[parent_idx];
-    ResetUIntFloatMap(s_[child_idx]);
+    s_[child_idx].resize(word_idxes_.size());
   }
 }
 
@@ -82,7 +82,7 @@ void DataBatch::UpdateSuffStatStructByMerge(
     n_[merging_idx] += n_[merged_idx];
     n_.erase(merged_idx);
     // merge s_ 
-    AccumUIntFloatMap(s_[merged_idx], 1, s_[merging_idx]);
+    ditree::Accum(s_[merged_idx], 1, s_[merging_idx]);
     s_.erase(merged_idx);
   }
 }

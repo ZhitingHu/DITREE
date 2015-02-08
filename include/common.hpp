@@ -52,17 +52,18 @@ class Vertex;
 
 // Constants
 const int kNumIntBits = 32;
-const float kFloatEpsilon = 1e-6;
+const float kFloatEpsilon = 1e-4;
 enum RowTypes {
   //kDITreeDenseRowDtypeID = 0,
   kIntDenseRowDtypeID = 0,
   kFloatDenseRowDtypeID
 };
+const int kNumPSTables = 4;
 enum TableIds {
   kParamTableID = 0,
   kTempParamTableID,
   kStructTableID,
-  kTrainLossTableID,
+  //kTrainLossTableID,
   kTestLossTableID
 };
   // param table row organization
@@ -98,6 +99,7 @@ typedef unsigned short uint16; // Should work for all x86/x64 compilers
 typedef unsigned int   uint32; // Should work for all x86/x64 compilers
 typedef vector<float> FloatVec;
 typedef map<uint32, float> UIntFloatMap;
+typedef map<uint32, uint32> UIntUIntMap;
 typedef pair<const uint32, float> UIntFloatPair;
 typedef pair<const uint32, UIntFloatMap> UIntUIntFloatMapPair; 
 typedef pair<const uint32, Vertex*> UIntVertexPair;

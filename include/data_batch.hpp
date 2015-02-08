@@ -16,8 +16,9 @@ class DataBatch {
   void UpdateSuffStatStruct(const Tree* tree, const Context::Phase phase);
   void InitSuffStatStruct(const Tree* tree, const vector<Datum*>& data);
 
+  inline UIntUIntMap& word_idxes() { return word_idxes_; }
   inline UIntFloatMap& n() { return n_; }
-  inline map<uint32, UIntFloatMap>& s() { return s_; }
+  inline map<uint32, FloatVec>& s() { return s_; }
   inline int size() const { return size_; }
   inline int data_idx_begin() const { return data_idx_begin_; } 
 
@@ -37,9 +38,10 @@ class DataBatch {
   /// one entry for each topic component
   UIntFloatMap n_;
 
-  
-  // vertex_id => (weights)
-  map<uint32, UIntFloatMap> s_;
+  // word_idx => index in s_'s FloatVec
+  UIntUIntMap word_idxes_;
+  // vertex_id => (weights of words in word_idxes_)
+  map<uint32, FloatVec> s_;
 };
 
 } // namespace ditree

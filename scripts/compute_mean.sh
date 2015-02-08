@@ -7,6 +7,9 @@ app_dir=`dirname $script_dir`
 progname=compute_mean
 prog_path=${app_dir}/build/tools/${progname}
 
+#dataset_path="${app_dir}/data/nyt/"
+#docs_file="nytimes.dat.bin"
+#vocab_size=102660
 dataset_path="${app_dir}/data/nyt/"
 docs_file="nytimes.dat.bin"
 vocab_size=102660

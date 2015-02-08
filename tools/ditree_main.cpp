@@ -57,8 +57,11 @@ DEFINE_string(params, "",
     "Optional; the model parameters to fine tuning.");
 DEFINE_string(ditree_outputs, "",
     "The prefix of the ditree output file.");
-DEFINE_int32(history, 1,
+DEFINE_int32(history_size, 1,
     "Number of history time slice to consider.");
+DEFINE_string(history, "",
+    "Optional; the model history.");
+
 // Data Parameters
 DEFINE_string(train_data, "",
     "The training data path.");
@@ -84,6 +87,8 @@ DEFINE_int32(top_k, 10,
 int main(int argc, char** argv) {
   // Print output to stderr (while still logging).
   FLAGS_alsologtostderr = 1;
+  // Do not buffer
+  FLAGS_logbuflevel = -1;
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
 

@@ -24,7 +24,7 @@ int main(int argc, char** argv) {
   string output_file = FLAGS_path + "/" + FLAGS_docs + "_mean.txt";
   fstream output(output_file.c_str(), ios::out);
   CHECK(output.is_open()) << "Fail to create file: " << output_file;
- 
+
   CHECK_GT(FLAGS_vocab_size, 0); 
   FloatVec mean(FLAGS_vocab_size);
  
@@ -59,6 +59,7 @@ int main(int argc, char** argv) {
   for (int v = 0; v < FLAGS_vocab_size; ++v) {
     output << mean[v] / mean_norm << endl;
   }
+  output.flush();
   output.close();
   
   LOG(INFO) << "Mean vector generation done."; 

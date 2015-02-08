@@ -12,7 +12,10 @@ class Datum {
   
   inline void AddWord(const int word_id, const float word_weight) {
 #ifdef DEBUG
-    CHECK(data_.find(word_id) == data_.end());
+    //CHECK(data_.find(word_id) == data_.end()) << word_id;
+    if (data_.find(word_id) != data_.end()) {
+      LOG(INFO) << "Duplicate word " << word_id;
+    }
 #endif
     data_[word_id] = word_weight;
   }

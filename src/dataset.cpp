@@ -72,6 +72,9 @@ void Dataset::ReadData(const string& filename) {
     input.read((char*)&doc_len, sizeof(int));
     for (int w_idx = 0; w_idx < doc_len; ++w_idx) {
       input.read((char*)&word_id, sizeof(int));
+#ifdef DEBUG
+      CHECK_LT(word_id, Context::vocab_size());
+#endif
       input.read((char*)&word_weight, sizeof(float));
       datum->AddWord(word_id, word_weight);
     
