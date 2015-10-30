@@ -2,7 +2,7 @@
 PROJECT := ditree
 
 # Petuum
-PETUUM_ROOT = /home/zhitingh/github-release/internal_bac
+PETUUM_ROOT = {PETUUM_ROOT_PATH} 
 include defns-ditree.mk
 
 # comment it to speedup
