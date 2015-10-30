@@ -1,0 +1,18 @@
+test_iter: 1
+test_interval: 1
+test_initialization: true
+display: 100
+max_epoch: 5
+snapshot: 100
+snapshot_after_train: true
+snapshot_prefix: "/home/zhitingh/dynamic-tree/DITREE/models/pnas/ditree_train"
+#
+split_epoch_interval: 2
+split_start_epoch: 1
+split_sample_start_iter: 0
+split_target_data_threshold: 0.05
+split_max_target_data_size: 200
+#
+merge_epoch_interval: 8
+merge_start_epoch: 10
+merge_iter: 0 

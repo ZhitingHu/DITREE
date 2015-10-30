@@ -1,0 +1,21 @@
+% Writes a matrix in the 0-indexed LDA-C format, for use with DItree
+function export_sparse_matrix(x,outputfile)
+  fid = fopen(outputfile,'w+');
+  N = size(x,1);
+  D = size(x,2);
+  for i = 1:N
+    if mod(i,1000) == 0
+      fprintf('Exporting datapoint %d/%d...\n',i,N);
+    end
+    
+    nonzeros = nnz(x(i,:));
+    fprintf(fid,'%d',nonzeros);
+    
+    idx = find(x(i,:));
+    for j = 1:length(idx)
+      fprintf(fid,' %d:%d',idx(j)-1,full(x(i,idx(j))));
+    end
+    fprintf(fid,'\n');
+  end
+  fclose(fid);
+end

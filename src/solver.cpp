@@ -202,22 +202,22 @@ void Solver::Solve(const char* resume_file) {
       /// Split
       Context::set_phase(Context::Phase::kSplit, thread_id_);
 
-      LOG(INFO) << "!!!!!!! Split " << client_id_ << " " << thread_id_;
+      //LOG(INFO) << "!!!!!!! Split " << client_id_ << " " << thread_id_;
       Split();
-      LOG(INFO) << "!!!!!!! Split Done." << client_id_ << " " << thread_id_;
+      //LOG(INFO) << "!!!!!!! Split Done." << client_id_ << " " << thread_id_;
 
       petuum::PSTableGroup::GlobalBarrier(); // Need to read struct table, so barrier here
       tree_->UpdateStructTableAfterSplit();
-      LOG(INFO) << "!!!!!!! Split Update STable Done." << client_id_ << " " << thread_id_;
+      //LOG(INFO) << "!!!!!!! Split Update STable Done." << client_id_ << " " << thread_id_;
 
       petuum::PSTableGroup::GlobalBarrier(); // Need to read struct table, so barrier here
       tree_->UpdateTreeStructAfterSplit();
-      LOG(INFO) << "!!!!!!! Split Update Local struc Done."<< client_id_ << " " << thread_id_;
+      //LOG(INFO) << "!!!!!!! Split Update Local struc Done."<< client_id_ << " " << thread_id_;
 
       tree_->ReadParamTable();
-      LOG(INFO) << "!!!!!!! read param table done. "<< client_id_ << " " << thread_id_;
+      //LOG(INFO) << "!!!!!!! read param table done. "<< client_id_ << " " << thread_id_;
       root_->RecursConstructParam();
-      LOG(INFO) << "!!!!!!! recurs param done. "<< client_id_ << " " << thread_id_;
+      //LOG(INFO) << "!!!!!!! recurs param done. "<< client_id_ << " " << thread_id_;
 
       clear_last_split = true;
       Context::set_phase(Context::Phase::kVIAfterSplit, thread_id_); 
@@ -364,14 +364,14 @@ void Solver::Update() {
   } // end of datum
 
   //TODO
-  if (client_id_ == 0 && thread_id_ == 0) {
-    BOOST_FOREACH(const UIntFloatPair& ele, n_old) {
-      LOG(INFO) << "n_old " << ele.first << " " << ele.second;
-    }
-    BOOST_FOREACH(const UIntFloatPair& ele, n_new) {
-      LOG(INFO) << "n_new " << ele.first << " " << ele.second;
-    }
-  }
+  //if (client_id_ == 0 && thread_id_ == 0) {
+  //  BOOST_FOREACH(const UIntFloatPair& ele, n_old) {
+  //    LOG(INFO) << "n_old " << ele.first << " " << ele.second;
+  //  }
+  //  BOOST_FOREACH(const UIntFloatPair& ele, n_new) {
+  //    LOG(INFO) << "n_new " << ele.first << " " << ele.second;
+  //  }
+  //}
 
   tree_->UpdateParamTable(n_new, n_old, word_idxes, s_new, s_old);
   tree_->ReadParamTable();
@@ -388,8 +388,8 @@ void Solver::Update() {
   CHECK(!isnan(elbo));
   //CHECK_LT(elbo, 0) << elbo << " " << tree_elbo_tmp << " " <<  h / train_data_->size() * data_batch->size();
 
-  LOG(ERROR) << epoch_ << " " << iter_ << "," << elbo << "\t" << tree_elbo_tmp 
-      << "\t" << h / data_batch->size() * train_data_->size();
+  //LOG(ERROR) << epoch_ << " " << iter_ << "," << elbo << "\t" << tree_elbo_tmp 
+  //    << "\t" << h / data_batch->size() * train_data_->size();
 }
 
 //
@@ -447,9 +447,9 @@ void Solver::SampleVertexToSplit() {
   }
 
   // TODO
-  for(uint32 v_t_p : vertexes_to_split_) {
-    LOG(INFO) << "To split " << v_t_p;
-  }
+  //for(uint32 v_t_p : vertexes_to_split_) {
+  //  LOG(INFO) << "To split " << v_t_p;
+  //}
 }
 
 void Solver::CollectTargetData(const UIntFloatMap& log_weights,
@@ -898,9 +898,9 @@ void Solver::Test() {
   UpdateTestLossTable(log_likelihood, data_batch->size());
 
   if (client_id_ == 0 && thread_id_ == 0) {
-    LOG(INFO) << "Epoch " << epoch_ << ",Iteration " << iter_ << ":" 
-        << log_likelihood / data_batch->size() << ","
-        << total_timer_.elapsed();
+    //LOG(INFO) << "Epoch " << epoch_ << ",Iter " << iter_
+    //    << ",log_likelihood " << log_likelihood / data_batch->size() 
+    //    << ",time_elapsed " << total_timer_.elapsed();
 
     if (test_counter_ > test_display_gap_) {
       vector<float> output_cache(kNumLossTableCols * 10);
@@ -911,12 +911,12 @@ void Solver::Test() {
 #ifdef DEBUG
       CHECK_GT(output_cache[kColIdxLossTableNumDatum], 0);
 #endif
-      LOG(ERROR) << "test,"
-          << output_cache[kColIdxLossTableEpoch]
-          << "," << output_cache[kColIdxLossTableIter]
-          << "," << output_cache[kColIdxLossTableTime]
-          << "," << output_cache[kColIdxLossTableLoss] 
-          / output_cache[kColIdxLossTableNumDatum];
+      LOG(ERROR) << "Test"
+          << ",Epoch " << output_cache[kColIdxLossTableEpoch]
+          << ",Iter " << output_cache[kColIdxLossTableIter]
+          << ",Time " << output_cache[kColIdxLossTableTime]
+          << ",Lld " 
+          << output_cache[kColIdxLossTableLoss] / output_cache[kColIdxLossTableNumDatum];
     }
   }
   ++test_counter_;

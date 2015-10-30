@@ -44,7 +44,7 @@ distribute/*
 ## Entity Embedding
 
 # Data and outputs
-data/*
+#data/*
 output/*
-models/*
+#models/*
 baselines/*

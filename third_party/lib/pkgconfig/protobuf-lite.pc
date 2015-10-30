@@ -1,4 +1,4 @@
-prefix=/home/zhitingh/dynamic-tree/ditree/third_party
+prefix=/home/zhitingh/dynamic-tree/SEI/DITREE/third_party
 exec_prefix=${prefix}
 libdir=${exec_prefix}/lib
 includedir=${prefix}/include

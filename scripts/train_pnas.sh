@@ -7,7 +7,7 @@ app_dir=`dirname $script_dir`
 progname=ditree_main
 prog_path=${app_dir}/build/tools/${progname}
 
-host_filename="machinefiles/localserver_pnas"
+host_filename="machinefiles/localserver"
 host_file=$(readlink -f $host_filename)
 
 dataset=pnas
@@ -21,15 +21,15 @@ solver_filename="${app_dir}/models/pnas/solver.prototxt"
 model_filename="${app_dir}/models/pnas/model.prototxt"
 #model_filename="${app_dir}/models/pnas/big_model.prototxt"
 
-history_filename="${app_dir}/models/pnas/ditree_trainditreemodel.epoch.20"
+#history_filename="${app_dir}/models/pnas/ditree_trainditreemodel.epoch.20"
 #snapshot_filename="${app_dir}/"
 #params_filename="${app_dir}/"
 
 # Petuum Parameters
-num_app_threads=16
+num_app_threads=1
 param_table_staleness=0
 loss_table_staleness=0
-num_clocks_per_epoch=10
+num_clocks_per_epoch=80
 num_comm_channels_per_client=1
 consistency_model="SSPPush"
 
@@ -47,9 +47,7 @@ num_history=1
 # Datset Parameters
 train_data="${app_dir}/data/data_pnas/pnas_heldout/ALL_train.dat.bin.shuffled"
 test_data="${app_dir}/data/data_pnas/pnas_heldout/ALL_test.dat.bin.shuffled"
-#train_data="${app_dir}/data/data_pnas/pnas_heldout/T2_train.dat.bin.shuffled"
-#test_data="${app_dir}/data/data_pnas/pnas_heldout/T2_test.dat.bin"
-mean="${app_dir}/data/data_pnas/pnas_heldout/T2_train.dat.bin_mean.txt"
+mean="${app_dir}/data/data_pnas/pnas_heldout/ALL_train.dat.bin_mean.txt"
 vocab="${app_dir}/data/data_pnas/pnas_heldout/pnas_vocab.text"
 vocab_size=36901
 train_batch_size=1000
@@ -131,8 +129,8 @@ for ip in $unique_host_list; do
       #--snapshot ${snapshot_filename} \
       #--params ${params_filename}"
 
-  ssh $ssh_options $ip $cmd &
-  #eval $cmd  # Use this to run locally (on one machine).
+  #ssh $ssh_options $ip $cmd &
+  eval $cmd  # Use this to run locally (on one machine).
 
   # Wait a few seconds for the name node (client 0) to set up
   if [ $client_id -eq 0 ]; then

@@ -847,9 +847,9 @@ void Tree::UpdateTreeStructAfterSplit() {
     CHECK(new_vertex_set.find(new_vertex_idx) == new_vertex_set.end());
     new_vertex_set.insert(new_vertex_idx);
 
-    if (client_id_ == 0 && thread_id_ == 0) {
-      LOG(ERROR) << "Split: " << parent_idx << " -> " << new_vertex_idx << " Done.";
-    }
+    //if (client_id_ == 0 && thread_id_ == 0) {
+    //  LOG(ERROR) << "Split: " << parent_idx << " -> " << new_vertex_idx << " Done.";
+    //}
   } // end of split records
 }
 

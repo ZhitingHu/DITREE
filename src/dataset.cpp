@@ -118,8 +118,8 @@ void Dataset::ReadVocab(const string& filename) {
 
 DataBatch* Dataset::GetNextDataBatch() {
   boost::mutex::scoped_lock lock(data_access_mutex);
-  LOG(INFO) << "Get next batch iter_=" << iter_ 
-    << " " << data_batch_queue_[iter_] << " #batches " << data_batches_.size();
+  //LOG(INFO) << "Get next batch iter_=" << iter_ 
+  //  << " " << data_batch_queue_[iter_] << " #batches " << data_batches_.size();
   if (iter_ < data_batches_.size()) {
     DataBatch* next_batch = data_batches_[data_batch_queue_[iter_]];
     ++iter_;
@@ -153,7 +153,7 @@ DataBatch* Dataset::GetNextBatchToApplyMerge() {
 void Dataset::Restart() {
   boost::mutex::scoped_lock lock(data_access_mutex);
   if (need_restart_) {
-    LOG(INFO) << "Restart!!! ";
+    //LOG(INFO) << "Restart!!! ";
     need_restart_ = false;
     // Only one thread on each client will execute this code
     iter_ = 0;
