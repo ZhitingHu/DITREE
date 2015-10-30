@@ -349,7 +349,8 @@ void Vertex::UpdateParamLocal(const float n_z_new, const float n_z_old,
 }
 
 void Vertex::RecursPrintChildrenList(ostringstream& oss) const {
-  oss << idx_ << " (" << table_idx_ << "," << child_table_idx_ << "): ";
+  //oss << idx_ << " (" << table_idx_ << "," << child_table_idx_ << "): ";
+  oss << idx_ << ": ";
   for (const auto child : children_) {
     oss << child->idx() << " ";
   }
