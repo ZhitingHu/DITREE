@@ -2,7 +2,7 @@
 PROJECT := ditree
 
 # Petuum
-PETUUM_ROOT = {PETUUM_ROOT_PATH} 
+PETUUM_BOSEN_ROOT = {PETUUM_BOSEN_ROOT_PATH} 
 include defns-ditree.mk
 
 # comment it to speedup
