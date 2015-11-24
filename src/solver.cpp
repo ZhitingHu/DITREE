@@ -31,11 +31,11 @@ void Solver::Init(const SolverParameter& param) {
   log_target_data_threshold_ = log(param_.split_target_data_threshold());
   max_target_data_size_ = param_.split_max_target_data_size();
 
-  train_loss_table_ 
-      = petuum::PSTableGroup::GetTableOrDie<float>(kTrainLossTableID);
+  //train_loss_table_ 
+  //    = petuum::PSTableGroup::GetTableOrDie<float>(kTrainLossTableID);
   test_loss_table_ 
       = petuum::PSTableGroup::GetTableOrDie<float>(kTestLossTableID);
-  RegisterPSTables();
+  //RegisterPSTables();
 
   // Initialize tree
   const string& model = Context::get_string("model"); 
