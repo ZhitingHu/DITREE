@@ -1,0 +1,4 @@
+learning neural networks network training neurons ann
+model neural networks network
+neural weight weights layer
+distribution guassian bernoulli
