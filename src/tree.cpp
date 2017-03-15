@@ -238,7 +238,6 @@ void Tree::InitParamRand(const vector<Datum*>& data) {
       ele.second->UpdateParamTableByInc(0, v_mean, 1.0);
     }
   }
-  //petuum::PSTableGroup::GlobalBarrier();
   petuum::PSTableGroup::GlobalBarrier();
   LOG(INFO) << "Init vertexes' mean. haslhere";
   if (client_id_ != 0 || thread_id_ != 0) {
@@ -257,7 +256,8 @@ void Tree::InitParamRand(const vector<Datum*>& data) {
     LOG(INFO) << "Init vertexes' mean. hasl ---";
   } else {
     // Sleep several sec t wait for other threads finish initialization
-    //sleep(5);
+    // TODO: use more reliable sync method
+    sleep(6);
     // Clear param table
     BOOST_FOREACH(UIntVertexPair& ele, vertexes_) {
       ele.second->UpdateParamTableByInc(0, ele.second->mean(), -1.0);

@@ -264,7 +264,7 @@ void Vertex::UpdateParamTable(const float data_batch_n_z_new,
     update_batch[kColIdxParamTableSStart + ele.first] 
         = data_batch_s_z_new[ele.second] - data_batch_s_z_old[ele.second];
   }
-  //param_table->DenseBatchInc(idx_, update_batch);
+  param_table->DenseBatchInc(idx_, update_batch);
 }
 
 void Vertex::UpdateParamTable(const float data_batch_n_z_new, 
